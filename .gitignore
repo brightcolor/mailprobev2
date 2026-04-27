@@ -1,0 +1,28 @@
+﻿# Binaries
+/bin/
+*.exe
+*.out
+
+# Runtime
+.env
+/data/
+*.db
+*.db-shm
+*.db-wal
+
+# Go build cache
+coverage.out
+.gocache/
+.gomodcache/
+.gopath/
+*.log
+
+# Frontend tooling cache
+node_modules/
+.npm-cache/
+.tmp/
+
+# Editors
+.vscode/
+.idea/
+.DS_Store
