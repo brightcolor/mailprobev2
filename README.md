@@ -1,11 +1,26 @@
-# MailProbe
+# MailProbe v2
 
+[![CI](https://github.com/brightcolor/mailprobev2/actions/workflows/ci.yml/badge.svg)](https://github.com/brightcolor/mailprobev2/actions/workflows/ci.yml)
 [![Contributions Welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](./CONTRIBUTING.md)
 
-Quickstart: `bash <(curl -fsSL https://raw.githubusercontent.com/brightcolor/mailprobe/main/scripts/quickstart.sh)`
+Quickstart: `bash <(curl -fsSL https://raw.githubusercontent.com/brightcolor/mailprobev2/main/scripts/quickstart.sh)`
 
 MailProbe is a self-hosted email deliverability test service.
 It accepts test emails on temporary addresses, stores the raw message, runs transparent checks, and shows a report with score + findings.
+
+## What's new in v2
+
+- **Score ring color adapts to result** — green/yellow/red based on score threshold (≥7.5 / ≥5.5 / below)
+- **Live status dot** — animated blue while waiting, orange when mail received, green when report is ready
+- **SSE-based live updates** — the mailbox page uses Server-Sent Events instead of polling; falls back to polling with exponential back-off when SSE is unavailable
+- **Auto-open first failed check** — the first failing or warning accordion item opens automatically on the report page
+- **Score coloring in message list** — scores in the mailbox inbox are green/yellow/red
+- **Score delta coloring** — positive deltas are shown in green, negative in red
+- **Left border on fail/warn checks** — visual indicator in check accordion for quick scanning
+- **`noreferrer` on all external links** — improved security for outbound link targets
+- **Dead CSS removed** — unused sidebar and logo styles eliminated (~60 lines)
+- **`mp-theme-text` class defined** — was referenced in HTML but missing from the stylesheet
+- **Unused `base.html` removed** — was parsed but never rendered
 
 ## Why this design
 
@@ -42,12 +57,15 @@ This project is intentionally built for small VPS setups (including ~1 GB RAM en
 
 - Vvveb Admin Template based shell and visual system (Apache-2.0 vendor assets are shipped locally)
 - Score-first dashboard with a large result hero, status counters, message metadata, and grouped diagnostics
+- Score ring and score number colored by result (green ≥7.5, yellow ≥5.5, red below 5.5)
 - Check groups for authentication, DNS/infrastructure, spam filters, content/format, and raw/header details
-- Check accordions show only values relevant to the current check instead of repeating global message metadata everywhere
+- Check accordions show only values relevant to the current check; first failing item opens automatically
 - Collapsible technical sections for long diagnostics, headers, plaintext, HTML preview, HTML source, and full raw source
 - Copy-to-clipboard actions for DNS records, recommendations, headers, source, and technical values
 - Remediation blocks are shown only for warning/failing checks as `Wie wird's gemacht?`
 - Detected URLs are grouped by domain with total and per-domain counts
+- Live status dot on mailbox page (animated while waiting, state-aware color)
+- SSE-based real-time mailbox updates with polling fallback
 - Responsive layout for desktop and mobile
 - Light, dark, and auto theme mode with a UI toggle; `auto` follows `prefers-color-scheme`
 
@@ -106,7 +124,7 @@ This is stored in the report JSON and visible in the web UI. Existing API consum
 - `internal/smtp`: lightweight SMTP receiver
 - `internal/analyzer`: parsing + checks + scoring
 - `internal/store`, `internal/db`: SQLite persistence layer
-- `internal/web`: SSR pages + API endpoints
+- `internal/web`: SSR pages + API endpoints + SSE event stream
 - `internal/cleanup`: periodic TTL/retention cleanup
 
 Bundled UI vendor assets:
@@ -137,7 +155,7 @@ Data path:
 Fully automatic (installs Docker + Docker Compose if missing, no SSL/reverse-proxy setup):
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/brightcolor/mailprobe/main/scripts/quickstart.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/brightcolor/mailprobev2/main/scripts/quickstart.sh)
 ```
 
 The installer asks whether optional `rspamd` and `redis` services should be enabled.
@@ -146,7 +164,7 @@ Based on your choice it generates `docker-compose.override.yml` (instead of edit
 Optional environment overrides for the script:
 
 ```bash
-INSTALL_DIR=/opt/mailprobe \
+INSTALL_DIR=/opt/mailprobev2 \
 HTTP_PORT=8080 \
 SMTP_PORT=2525 \
 SMTP_DOMAIN= \
@@ -155,7 +173,7 @@ ENABLE_TLS=false \
 FORCE_HTTPS=false \
 ENABLE_RSPAMD=false \
 ENABLE_REDIS=false \
-bash <(curl -fsSL https://raw.githubusercontent.com/brightcolor/mailprobe/main/scripts/quickstart.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/brightcolor/mailprobev2/main/scripts/quickstart.sh)
 ```
 
 Manual setup:
@@ -198,7 +216,7 @@ Copy `.env.example` and adjust.
 
 Important variables:
 
-- `MAILPROBE_IMAGE` (default: `ghcr.io/brightcolor/mailprobe:latest`; pin a version tag for production)
+- `MAILPROBE_IMAGE` (default: `ghcr.io/brightcolor/mailprobev2:latest`; pin a version tag for production)
 - `PUBLIC_BASE_URL` (optional override; leave empty to derive scheme + host from the request)
 - `SMTP_DOMAIN` (optional override; leave empty to use the request host for generated mailbox domains)
 - `ENABLE_TLS`, `TLS_CERT_FILE`, `TLS_KEY_FILE` (optional direct TLS for the built-in web server)
@@ -308,6 +326,12 @@ Report API:
 
 - `GET /api/reports/<mailbox-token>/<message-ref>` returns mailbox metadata, message metadata, and the full analysis report as JSON.
 
+Mailbox API:
+
+- `GET /api/mailboxes/<token>/status` — current mailbox state and latest message reference
+- `GET /api/mailboxes/<token>/events` — Server-Sent Events stream for live mailbox updates
+- `POST /api/mailboxes/<token>/delete` — delete a mailbox
+
 Useful commands:
 
 ```bash
@@ -328,7 +352,7 @@ GitHub Actions workflows are included:
 
 Published image target:
 
-- `ghcr.io/brightcolor/mailprobe:<tag>`
+- `ghcr.io/brightcolor/mailprobev2:<tag>`
 
 Image tag strategy:
 
@@ -341,7 +365,7 @@ Image tag strategy:
 Recommended production pin:
 
 ```bash
-MAILPROBE_IMAGE=ghcr.io/brightcolor/mailprobe:v0.1.1
+MAILPROBE_IMAGE=ghcr.io/brightcolor/mailprobev2:v0.2.0
 docker compose pull
 docker compose up -d
 ```
@@ -349,7 +373,7 @@ docker compose up -d
 Rollback to an older image:
 
 ```bash
-MAILPROBE_IMAGE=ghcr.io/brightcolor/mailprobe:v0.1.0
+MAILPROBE_IMAGE=ghcr.io/brightcolor/mailprobev2:v0.1.0
 docker compose pull
 docker compose up -d
 ```
@@ -374,10 +398,12 @@ Optional checks (RBL, SpamAssassin, Rspamd) increase resource usage and latency.
 
 ## Roadmap
 
+- RBL/blacklist check as first-class UI widget
+- Webhook notification on mail received/analyzed
+- Score history chart across multiple test runs
+- API key auth for private self-hosted deployments
 - Stronger DKIM verification path
-- More rule configurability via external config
-- Auth-protected/private deployment mode
-- Report export formats
+- Report export formats (PDF/HTML)
 
 ## License
 

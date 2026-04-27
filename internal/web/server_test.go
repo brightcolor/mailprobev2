@@ -41,7 +41,7 @@ func TestReportUsesTokenURLAndInlineRawAccordion(t *testing.T) {
 	if !strings.Contains(body, "rawAccordion") {
 		t.Fatalf("expected inline raw accordion in report page")
 	}
-	if !strings.Contains(body, "Plaintext View") || !strings.Contains(body, "HTML Source View") {
+	if !strings.Contains(body, "Plaintext-Ansicht") || !strings.Contains(body, "HTML Quelltext") {
 		t.Fatalf("expected plaintext/html sections in report page")
 	}
 	if !strings.Contains(body, msg.HeaderBlock) {
