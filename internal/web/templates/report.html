@@ -7,7 +7,6 @@
   <meta name="description" content="Deliverability-Report für {{.Mailbox.Address}} – Score {{printf "%.1f" .Report.Score}}/10" />
   <title>Report {{.Mailbox.Token}} – {{.AppName}}</title>
   <script>(function(){try{var p=localStorage.getItem('mailprobe-theme')||'auto';var d=p==='auto'?(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;document.documentElement.dataset.bsTheme=d;document.documentElement.dataset.themePreference=p;}catch(e){document.documentElement.dataset.bsTheme='light';}})()</script>
-  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css" />
   <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body class="mailprobe-ui page-report">
@@ -83,69 +82,59 @@
             <h2>{{.Name}}</h2>
             {{if .Hint}}<p>{{.Hint}}</p>{{end}}
           </div>
-          <div class="accordion mp-check-accordion" id="checks-{{$groupID}}">
+          <div class="mp-check-accordion" id="checks-{{$groupID}}">
             {{range .Checks}}
-            <div class="accordion-item mp-check-item {{.Status}}">
-              <h3 class="accordion-header">
-                <button class="accordion-button collapsed"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#check-{{safeID .ID}}"
-                        aria-expanded="false"
-                        aria-controls="check-{{safeID .ID}}">
-                  <span class="mp-chk-inner">
-                    <span class="mp-status-dot {{.Status}}">{{statusIcon .Status}}</span>
-                    <span class="mp-chk-name">
-                      <strong>{{.Name}}</strong>
-                      <small>{{.Summary}}</small>
-                    </span>
-                    <span class="mp-pill {{.Status}}">{{statusLabel .Status}}</span>
-                    <strong class="mp-delta">{{printf "%+.1f" .ScoreDelta}}</strong>
-                  </span>
-                </button>
-              </h3>
-              <div id="check-{{safeID .ID}}" class="accordion-collapse collapse">
-                <div class="accordion-body mp-check-body">
+            <details class="mp-check-item {{.Status}}" id="chk-{{safeID .ID}}">
+              <summary>
+                <span class="mp-status-dot {{.Status}}">{{statusIcon .Status}}</span>
+                <span class="mp-chk-name">
+                  <strong>{{.Name}}</strong>
+                  <small>{{.Summary}}</small>
+                </span>
+                <span class="mp-pill {{.Status}}">{{statusLabel .Status}}</span>
+                <strong class="mp-delta">{{printf "%+.1f" .ScoreDelta}}</strong>
+                <span class="mp-chk-arrow">›</span>
+              </summary>
+              <div class="mp-check-body">
 
-                  <div class="mp-check-section">
-                    <h4>Kurzbewertung</h4>
-                    <p>{{.Summary}}</p>
-                  </div>
-
-                  {{if .TechnicalDetails}}
-                  <div class="mp-check-section">
-                    <div class="mp-section-row">
-                      <h4>Technische Details</h4>
-                      <button class="btn btn-sm btn-outline-secondary" type="button" data-copy="{{detailsText .TechnicalDetails}}">Kopieren</button>
-                    </div>
-                    <dl class="mp-tech-dl">
-                      {{range $k, $v := .TechnicalDetails}}
-                      <div><dt>{{$k}}</dt><dd><code>{{$v}}</code></dd></div>
-                      {{end}}
-                    </dl>
-                  </div>
-                  {{end}}
-
-                  {{if .Explanation}}
-                  <div class="mp-check-section">
-                    <h4>Erklärung</h4>
-                    <p>{{.Explanation}}</p>
-                  </div>
-                  {{end}}
-
-                  {{if and .Recommendation (or (eq .Status "warn") (eq .Status "fail"))}}
-                  <div class="mp-check-section mp-fix-box">
-                    <div class="mp-section-row">
-                      <h4>Wie wird's gemacht?</h4>
-                      <button class="btn btn-sm btn-outline-secondary" type="button" data-copy="{{.Recommendation}}">Kopieren</button>
-                    </div>
-                    <p>{{.Recommendation}}</p>
-                  </div>
-                  {{end}}
-
+                <div class="mp-check-section">
+                  <h4>Kurzbewertung</h4>
+                  <p>{{.Summary}}</p>
                 </div>
+
+                {{if .TechnicalDetails}}
+                <div class="mp-check-section">
+                  <div class="mp-section-row">
+                    <h4>Technische Details</h4>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-copy="{{detailsText .TechnicalDetails}}">Kopieren</button>
+                  </div>
+                  <dl class="mp-tech-dl">
+                    {{range $k, $v := .TechnicalDetails}}
+                    <div><dt>{{$k}}</dt><dd><code>{{$v}}</code></dd></div>
+                    {{end}}
+                  </dl>
+                </div>
+                {{end}}
+
+                {{if .Explanation}}
+                <div class="mp-check-section">
+                  <h4>Erklärung</h4>
+                  <p>{{.Explanation}}</p>
+                </div>
+                {{end}}
+
+                {{if and .Recommendation (or (eq .Status "warn") (eq .Status "fail"))}}
+                <div class="mp-check-section mp-fix-box">
+                  <div class="mp-section-row">
+                    <h4>Wie wird's gemacht?</h4>
+                    <button class="btn btn-sm btn-outline-secondary" type="button" data-copy="{{.Recommendation}}">Kopieren</button>
+                  </div>
+                  <p>{{.Recommendation}}</p>
+                </div>
+                {{end}}
+
               </div>
-            </div>
+            </details>
             {{end}}
           </div>
         </section>
@@ -199,84 +188,64 @@
       </aside>
     </div>
 
-    {{/* ── Raw data (accordion) ───────────────────────────────────────────── */}}
+    {{/* ── Raw data ───────────────────────────────────────────────────────── */}}
     <div class="mp-raw-card">
       <div class="mp-inbox-head">
         <h2>Quelltext, Header &amp; Mail-Inhalt</h2>
         <span>Einklappbar &middot; kopierbar</span>
       </div>
-      <div class="accordion" id="rawAccordion">
+      <div id="rawAccordion">
 
-        <div class="accordion-item">
-          <h3 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rawPlainText">Plaintext-Ansicht</button>
-          </h3>
-          <div id="rawPlainText" class="accordion-collapse collapse" data-bs-parent="#rawAccordion">
-            <div class="accordion-body">
-              {{if .PlainTextBody}}
-              <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.PlainTextBody}}">Kopieren</button>
-              <pre class="mp-raw-pre">{{.PlainTextBody}}</pre>
-              {{else}}
-              <p class="text-secondary">Kein Plaintext-Body gefunden.</p>
-              {{end}}
-            </div>
+        <details>
+          <summary>Plaintext-Ansicht</summary>
+          <div class="mp-raw-body">
+            {{if .PlainTextBody}}
+            <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.PlainTextBody}}">Kopieren</button>
+            <pre class="mp-raw-pre">{{.PlainTextBody}}</pre>
+            {{else}}
+            <p class="text-secondary">Kein Plaintext-Body gefunden.</p>
+            {{end}}
           </div>
-        </div>
+        </details>
 
-        <div class="accordion-item">
-          <h3 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rawHtmlPreview">HTML Vorschau</button>
-          </h3>
-          <div id="rawHtmlPreview" class="accordion-collapse collapse" data-bs-parent="#rawAccordion">
-            <div class="accordion-body">
-              {{if .HTMLPreviewBody}}
-              <iframe class="mp-html-frame" sandbox="allow-same-origin" srcdoc="{{.HTMLPreviewBody}}" title="HTML Mail Vorschau"></iframe>
-              {{else}}
-              <p class="text-secondary">Kein HTML-Body gefunden.</p>
-              {{end}}
-            </div>
+        <details>
+          <summary>HTML Vorschau</summary>
+          <div class="mp-raw-body">
+            {{if .HTMLPreviewBody}}
+            <iframe class="mp-html-frame" sandbox="allow-same-origin" srcdoc="{{.HTMLPreviewBody}}" title="HTML Mail Vorschau"></iframe>
+            {{else}}
+            <p class="text-secondary">Kein HTML-Body gefunden.</p>
+            {{end}}
           </div>
-        </div>
+        </details>
 
-        <div class="accordion-item">
-          <h3 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rawHtmlSource">HTML Quelltext</button>
-          </h3>
-          <div id="rawHtmlSource" class="accordion-collapse collapse" data-bs-parent="#rawAccordion">
-            <div class="accordion-body">
-              {{if .HTMLSourceBody}}
-              <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.HTMLSourceBody}}">Kopieren</button>
-              <pre class="mp-raw-pre">{{.HTMLSourceBody}}</pre>
-              {{else}}
-              <p class="text-secondary">Kein HTML-Body gefunden.</p>
-              {{end}}
-            </div>
+        <details>
+          <summary>HTML Quelltext</summary>
+          <div class="mp-raw-body">
+            {{if .HTMLSourceBody}}
+            <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.HTMLSourceBody}}">Kopieren</button>
+            <pre class="mp-raw-pre">{{.HTMLSourceBody}}</pre>
+            {{else}}
+            <p class="text-secondary">Kein HTML-Body gefunden.</p>
+            {{end}}
           </div>
-        </div>
+        </details>
 
-        <div class="accordion-item">
-          <h3 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rawHeaderBlock">Header Block</button>
-          </h3>
-          <div id="rawHeaderBlock" class="accordion-collapse collapse" data-bs-parent="#rawAccordion">
-            <div class="accordion-body">
-              <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.Message.HeaderBlock}}">Kopieren</button>
-              <pre class="mp-raw-pre">{{.Message.HeaderBlock}}</pre>
-            </div>
+        <details>
+          <summary>Header Block</summary>
+          <div class="mp-raw-body">
+            <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.Message.HeaderBlock}}">Kopieren</button>
+            <pre class="mp-raw-pre">{{.Message.HeaderBlock}}</pre>
           </div>
-        </div>
+        </details>
 
-        <div class="accordion-item">
-          <h3 class="accordion-header">
-            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#rawFullSource">Vollst&auml;ndige Rohnachricht</button>
-          </h3>
-          <div id="rawFullSource" class="accordion-collapse collapse" data-bs-parent="#rawAccordion">
-            <div class="accordion-body">
-              <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.Message.RawSource}}">Kopieren</button>
-              <pre class="mp-raw-pre">{{.Message.RawSource}}</pre>
-            </div>
+        <details>
+          <summary>Vollst&auml;ndige Rohnachricht</summary>
+          <div class="mp-raw-body">
+            <button class="btn btn-sm btn-outline-secondary mb-2" type="button" data-copy="{{.Message.RawSource}}">Kopieren</button>
+            <pre class="mp-raw-pre">{{.Message.RawSource}}</pre>
           </div>
-        </div>
+        </details>
 
       </div>
     </div>
@@ -284,44 +253,33 @@
     {{/* ── Links section ──────────────────────────────────────────────────── */}}
     <div class="mp-links-card">
       <div class="mp-inbox-head">
-        <h2>Erkannte URLs {{if .LinkTotal}}<span class="badge text-bg-secondary" style="font-size:0.75rem">{{.LinkTotal}} gesamt</span>{{end}}</h2>
+        <h2>Erkannte URLs {{if .LinkTotal}}<span class="badge text-bg-secondary" style="font-size:.75rem">{{.LinkTotal}} gesamt</span>{{end}}</h2>
         <span>Gruppiert nach Domain</span>
       </div>
       {{if .LinkGroups}}
-      <div class="accordion" id="linkGroups" style="border-top:0">
+      <div id="linkGroups">
         {{range .LinkGroups}}
-        <div class="accordion-item">
-          <h3 class="accordion-header">
-            <button class="accordion-button collapsed" type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#links-{{safeID .Domain}}"
-                    aria-expanded="false"
-                    aria-controls="links-{{safeID .Domain}}">
-              <span class="mp-chk-inner" style="grid-template-columns:minmax(0,1fr) auto">
-                <span class="mp-chk-name"><strong>{{.Domain}}</strong></span>
-                <span class="badge text-bg-secondary">{{.Count}}</span>
-              </span>
-            </button>
-          </h3>
-          <div id="links-{{safeID .Domain}}" class="accordion-collapse collapse" data-bs-parent="#linkGroups">
-            <div class="accordion-body">
-              <ul class="mp-clean-list mp-link-list">
-                {{range .Links}}<li><a href="{{.}}" target="_blank" rel="noopener noreferrer">{{.}}</a></li>{{end}}
-              </ul>
-            </div>
+        <details>
+          <summary>
+            <strong>{{.Domain}}</strong>
+            <span class="badge text-bg-secondary">{{.Count}}</span>
+          </summary>
+          <div class="mp-link-body">
+            <ul class="mp-clean-list mp-link-list">
+              {{range .Links}}<li><a href="{{.}}" target="_blank" rel="noopener noreferrer">{{.}}</a></li>{{end}}
+            </ul>
           </div>
-        </div>
+        </details>
         {{end}}
       </div>
       {{else}}
-      <div style="padding:1.5rem 1.25rem;color:var(--muted);font-size:0.9375rem">Keine Links erkannt.</div>
+      <div style="padding:1.5rem 1.25rem;color:var(--muted);font-size:.9375rem">Keine Links erkannt.</div>
       {{end}}
     </div>
 
   </main>
 
 </div>
-<script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

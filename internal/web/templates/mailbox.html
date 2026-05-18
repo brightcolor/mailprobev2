@@ -7,7 +7,6 @@
   <meta name="description" content="Live-Mailbox {{.Mailbox.Address}} – warte auf eingehende Testmails." />
   <title>Mailbox {{.Mailbox.Token}} – {{.AppName}}</title>
   <script>(function(){try{var p=localStorage.getItem('mailprobe-theme')||'auto';var d=p==='auto'?(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;document.documentElement.dataset.bsTheme=d;document.documentElement.dataset.themePreference=p;}catch(e){document.documentElement.dataset.bsTheme='light';}})()</script>
-  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css" />
   <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body class="mailprobe-ui page-mailbox">
@@ -16,7 +15,7 @@
   <header class="mp-topbar">
     <a class="mp-brand" href="/"><span class="mp-brand-mark">MP</span>{{.AppName}}</a>
     <div class="mp-topbar-center">
-      <p class="mp-topbar-subtitle">Live Mailbox</p>
+      <p class="mp-topbar-subtitle">Live Mailbox &middot; {{.Mailbox.Address}}</p>
     </div>
     <div class="mp-topbar-actions">
       <button class="btn btn-ghost btn-sm mp-theme-btn" id="theme-toggle" type="button" title="Theme wechseln">
@@ -27,105 +26,106 @@
   </header>
 
   <main class="mp-main">
+    <div class="mp-mb-wrap">
 
-    <div class="mp-mb-header">
-      <div class="mp-mb-title">
-        <h1>Wartebereich</h1>
-        <p>Sende deine Testmail an <code id="mail-address">{{.Mailbox.Address}}</code></p>
-      </div>
-      <div class="mp-mb-actions">
-        <button id="new-address-btn" class="btn btn-outline-secondary btn-sm" type="button">Neue Adresse</button>
-        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAddress()">Adresse kopieren</button>
-      </div>
-    </div>
-
-    <div class="mp-live-bar"
-         id="status-card"
-         data-token="{{.Mailbox.Token}}"
-         data-latest-message-id="{{if .Messages}}{{(index .Messages 0).Message.ID}}{{else}}0{{end}}">
-      <span class="status-dot dot-waiting"></span>
-      <div class="mp-live-bar-text">
-        <p id="status-text">Warte auf eingehende E-Mail &hellip;</p>
-        <small>Live-Status &middot; aktualisiert automatisch</small>
-      </div>
-      <dl class="mp-live-bar-meta">
+      <div class="mp-mb-hd">
         <div>
-          <dt>Ablauf</dt>
-          <dd data-time="{{.Mailbox.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Mailbox.ExpiresAt.Format "02.01.2006, 15:04 MST"}}</dd>
+          <h1>Wartebereich</h1>
+          <p>Sende deine Testmail an <code id="mail-address">{{.Mailbox.Address}}</code></p>
         </div>
-        <div>
-          <dt>Direktlink</dt>
-          <dd><a href="{{.PublicURL}}/mailbox/{{.Mailbox.Token}}">{{.PublicURL}}/mailbox/{{.Mailbox.Token}}</a></dd>
+        <div class="mp-mb-actions">
+          <button id="new-address-btn" class="btn btn-secondary btn-sm" type="button">Neue Adresse</button>
+          <button class="btn btn-secondary btn-sm" type="button" onclick="copyAddress()">Adresse kopieren</button>
         </div>
-      </dl>
-    </div>
-
-    <div class="card" style="margin-top:1rem">
-      <div class="mp-inbox-head">
-        <h2>Empfangene Nachrichten</h2>
-        <span>Neueste zuerst</span>
       </div>
 
-      {{if .Messages}}
-      <div style="overflow-x:auto">
-        <table class="mp-msg-table">
-          <thead>
-            <tr>
-              <th>Nachricht</th>
-              <th>Empfangen</th>
-              <th>Score</th>
-              <th style="text-align:right">Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{range .Messages}}
-            <tr>
-              <td>
-                <span class="mp-msg-subject">{{if .Message.Subject}}{{.Message.Subject}}{{else}}(kein Betreff){{end}}</span>
-                <span class="mp-msg-from">{{.Message.SMTPFrom}}</span>
-              </td>
-              <td>
-                <time class="mp-msg-time" data-time="{{.Message.ReceivedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.ReceivedAt.Format "2006-01-02 15:04"}}</time>
-              </td>
-              <td>
-                {{if .Report}}
-                <div class="mp-score-mini">
-                  <strong>{{printf "%.1f" .Report.Score}}</strong><span>/10</span>
-                </div>
-                {{else}}
-                <span style="font-size:0.8125rem;color:var(--muted)">–</span>
-                {{end}}
-              </td>
-              <td>
-                <div class="mp-msg-actions">
+      <div class="mp-live-bar"
+           id="status-card"
+           data-token="{{.Mailbox.Token}}"
+           data-latest-message-id="{{if .Messages}}{{(index .Messages 0).Message.ID}}{{else}}0{{end}}">
+        <span class="status-dot dot-waiting"></span>
+        <div class="mp-live-bar-text">
+          <p id="status-text">Warte auf eingehende E-Mail &hellip;</p>
+          <small>Live-Status &middot; aktualisiert automatisch</small>
+        </div>
+        <dl class="mp-live-bar-meta">
+          <div>
+            <dt>Ablauf</dt>
+            <dd data-time="{{.Mailbox.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Mailbox.ExpiresAt.Format "02.01.2006, 15:04 MST"}}</dd>
+          </div>
+          <div>
+            <dt>Direktlink</dt>
+            <dd><a href="{{.PublicURL}}/mailbox/{{.Mailbox.Token}}">{{.PublicURL}}/mailbox/{{.Mailbox.Token}}</a></dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="mp-inbox">
+        <div class="mp-inbox-head">
+          <h2>Empfangene Nachrichten</h2>
+          <span>Neueste zuerst</span>
+        </div>
+
+        {{if .Messages}}
+        <div style="overflow-x:auto">
+          <table class="mp-msg-table">
+            <thead>
+              <tr>
+                <th>Nachricht</th>
+                <th>Empfangen</th>
+                <th>Score</th>
+                <th style="text-align:right">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{range .Messages}}
+              <tr>
+                <td>
+                  <span class="mp-msg-subject">{{if .Message.Subject}}{{.Message.Subject}}{{else}}(kein Betreff){{end}}</span>
+                  <span class="mp-msg-from">{{.Message.SMTPFrom}}</span>
+                </td>
+                <td>
+                  <time class="mp-msg-time" data-time="{{.Message.ReceivedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Message.ReceivedAt.Format "2006-01-02 15:04"}}</time>
+                </td>
+                <td>
                   {{if .Report}}
-                  <a class="btn btn-sm btn-primary" href="/report/{{$.Mailbox.Token}}?msg={{msgref $.Mailbox.Token .Message.ID}}">Report</a>
+                  <div class="mp-score-mini">
+                    <strong>{{printf "%.1f" .Report.Score}}</strong><span>/10</span>
+                  </div>
                   {{else}}
-                  <span class="badge text-bg-secondary">Analyse&hellip;</span>
+                  <span style="font-size:.8125rem;color:var(--muted)">–</span>
                   {{end}}
-                  <a class="btn btn-sm btn-outline-secondary" href="/raw/{{$.Mailbox.Token}}/{{msgref $.Mailbox.Token .Message.ID}}/headers" target="_blank" rel="noopener noreferrer">Header</a>
-                  <a class="btn btn-sm btn-outline-secondary" href="/raw/{{$.Mailbox.Token}}/{{msgref $.Mailbox.Token .Message.ID}}/source" target="_blank" rel="noopener noreferrer">Raw</a>
-                  {{if .Report}}<a class="btn btn-sm btn-outline-secondary" href="/api/reports/{{$.Mailbox.Token}}/{{msgref $.Mailbox.Token .Message.ID}}" target="_blank" rel="noopener noreferrer">JSON</a>{{end}}
-                </div>
-              </td>
-            </tr>
-            {{end}}
-          </tbody>
-        </table>
+                </td>
+                <td>
+                  <div class="mp-msg-actions">
+                    {{if .Report}}
+                    <a class="btn btn-sm btn-primary" href="/report/{{$.Mailbox.Token}}?msg={{msgref $.Mailbox.Token .Message.ID}}">Report</a>
+                    {{else}}
+                    <span class="badge text-bg-secondary">Analyse&hellip;</span>
+                    {{end}}
+                    <a class="btn btn-sm btn-outline-secondary" href="/raw/{{$.Mailbox.Token}}/{{msgref $.Mailbox.Token .Message.ID}}/headers" target="_blank" rel="noopener noreferrer">Header</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="/raw/{{$.Mailbox.Token}}/{{msgref $.Mailbox.Token .Message.ID}}/source" target="_blank" rel="noopener noreferrer">Raw</a>
+                    {{if .Report}}<a class="btn btn-sm btn-outline-secondary" href="/api/reports/{{$.Mailbox.Token}}/{{msgref $.Mailbox.Token .Message.ID}}" target="_blank" rel="noopener noreferrer">JSON</a>{{end}}
+                  </div>
+                </td>
+              </tr>
+              {{end}}
+            </tbody>
+          </table>
+        </div>
+        {{else}}
+        <div class="mp-empty">
+          <div class="mp-empty-icon">&#9993;</div>
+          <h3>Noch keine E-Mail empfangen</h3>
+          <p>Diese Seite aktualisiert sich automatisch, sobald eine Nachricht eingeht.</p>
+        </div>
+        {{end}}
       </div>
-      {{else}}
-      <div class="mp-empty">
-        <div class="mp-empty-icon">&#9993;</div>
-        <h3>Noch keine E-Mail empfangen</h3>
-        <p>Diese Seite aktualisiert sich automatisch, sobald eine Nachricht eingeht.</p>
-      </div>
-      {{end}}
-    </div>
 
+    </div>
   </main>
 
 </div>
-<script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

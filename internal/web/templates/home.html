@@ -7,7 +7,6 @@
   <meta name="description" content="Teste deine E-Mail auf Zustellbarkeit – SPF, DKIM, DMARC, Spam-Score und mehr. Self-hosted, kein Account nötig." />
   <title>{{.AppName}} – E-Mail Deliverability Test</title>
   <script>(function(){try{var p=localStorage.getItem('mailprobe-theme')||'auto';var d=p==='auto'?(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):p;document.documentElement.dataset.bsTheme=d;document.documentElement.dataset.themePreference=p;}catch(e){document.documentElement.dataset.bsTheme='light';}})()</script>
-  <link rel="stylesheet" href="/static/vendor/bootstrap.min.css" />
   <link rel="stylesheet" href="/static/app.css" />
 </head>
 <body class="mailprobe-ui page-home">
@@ -16,7 +15,7 @@
   <header class="mp-topbar">
     <a class="mp-brand" href="/"><span class="mp-brand-mark">MP</span>{{.AppName}}</a>
     <div class="mp-topbar-center">
-      <p class="mp-topbar-subtitle">Self-hosted E-Mail Deliverability Lab</p>
+      <p class="mp-topbar-subtitle">E-Mail Deliverability Lab &middot; Self-hosted &middot; Open Source</p>
     </div>
     <div class="mp-topbar-actions">
       <span class="badge text-bg-primary mp-hide-mobile">{{.Domain}}</span>
@@ -28,71 +27,76 @@
 
   <main class="mp-main" id="check-panel" data-token="{{.Mailbox.Token}}" data-public-url="{{.PublicURL}}">
 
-    <div class="mp-home-hero">
-      <div class="mp-home-label">
-        <span>●</span>&nbsp;Self-hosted &middot; Open Source
+    <div class="mp-hero">
+      <div class="mp-hero-badge">
+        <span class="hdot"></span>
+        Self-hosted &middot; Open Source
       </div>
-      <h1 class="mp-home-h1">Teste deine E-Mail,<br>bevor sie sendet.</h1>
-      <p class="mp-home-sub">Schicke eine Testmail an die temporäre Adresse unten. MailProbe prüft SPF, DKIM, DMARC, PTR, Spam-Signale und mehr – sofort, live, ohne Account.</p>
+      <h1>Teste deine E-Mail,<br>bevor sie sendet.</h1>
+      <p>Schicke eine Testmail an die temporäre Adresse unten. MailProbe prüft SPF, DKIM, DMARC, PTR, Spam-Signale und mehr &ndash; sofort, live, ohne Account.</p>
     </div>
 
     <div class="mp-addr-card">
-      <p class="mp-addr-eyebrow">Temporäre Empfängeradresse</p>
-
-      <div class="mp-addr-row">
-        <code class="mp-addr-text" id="mail-address">{{.Mailbox.Address}}</code>
-        <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAddress()">Kopieren</button>
+      <div class="mp-addr-card-head">
+        <span class="mp-addr-label">Temporäre Empfängeradresse</span>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="copyAddress()">Kopieren</button>
       </div>
+      <div class="mp-addr-body">
 
-      <div class="mp-addr-actions">
-        <button id="check-btn" class="btn btn-primary btn-lg" type="button">Check starten</button>
-        <button id="new-address-btn" class="btn btn-outline-secondary btn-lg" type="button">Neue Adresse</button>
-      </div>
-
-      <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem;">
-        <div id="check-loader" class="mp-scan-dots d-none" aria-hidden="true"><span></span><span></span><span></span></div>
-        <p id="check-status" class="mp-check-status" style="margin:0">Bereit &ndash; noch keine E-Mail für diese Adresse geprüft.</p>
-      </div>
-
-      <dl class="mp-addr-meta">
-        <div class="mp-meta-cell">
-          <dt>Ablauf</dt>
-          <dd id="mail-expires-at" data-time="{{.Mailbox.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Mailbox.ExpiresAt.Format "02.01.2006, 15:04 MST"}}</dd>
+        <div class="mp-addr-box">
+          <code class="mp-addr-text" id="mail-address">{{.Mailbox.Address}}</code>
         </div>
-        <div class="mp-meta-cell">
-          <dt>Direktlink</dt>
-          <dd><a id="mailbox-direct-link" href="{{.PublicURL}}/mailbox/{{.Mailbox.Token}}">{{.PublicURL}}/mailbox/{{.Mailbox.Token}}</a></dd>
+
+        <div class="mp-addr-actions">
+          <button id="check-btn" class="btn btn-primary btn-lg" type="button">Check starten</button>
+          <button id="new-address-btn" class="btn btn-secondary btn-lg" type="button">Neue Adresse</button>
         </div>
-      </dl>
+
+        <div class="mp-addr-status">
+          <div id="check-loader" class="mp-scan-dots d-none" aria-hidden="true"><span></span><span></span><span></span></div>
+          <p id="check-status" class="mp-check-status">Bereit &ndash; noch keine E-Mail für diese Adresse geprüft.</p>
+        </div>
+
+        <dl class="mp-addr-meta">
+          <div class="mp-meta-tile">
+            <dt>Ablauf</dt>
+            <dd id="mail-expires-at" data-time="{{.Mailbox.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Mailbox.ExpiresAt.Format "02.01.2006, 15:04 MST"}}</dd>
+          </div>
+          <div class="mp-meta-tile">
+            <dt>Direktlink</dt>
+            <dd><a id="mailbox-direct-link" href="{{.PublicURL}}/mailbox/{{.Mailbox.Token}}">{{.PublicURL}}/mailbox/{{.Mailbox.Token}}</a></dd>
+          </div>
+        </dl>
+
+      </div>
     </div>
 
-    <div class="mp-features" aria-label="Prüfbereiche">
+    <div class="mp-feats" aria-label="Prüfbereiche">
       <div class="mp-feat">
         <div class="mp-feat-icon ok">✓</div>
         <h3>Authentifizierung</h3>
-        <p>SPF, DKIM, DMARC &amp; Alignment mit DNS-Hinweisen.</p>
+        <p>SPF, DKIM, DMARC &amp; Alignment.</p>
       </div>
       <div class="mp-feat">
         <div class="mp-feat-icon info">⬡</div>
         <h3>Infrastruktur</h3>
-        <p>PTR, HELO/EHLO, MX, TLS &amp; Received-Kette.</p>
+        <p>PTR, HELO, MX &amp; TLS.</p>
       </div>
       <div class="mp-feat">
         <div class="mp-feat-icon warn">!</div>
         <h3>Content</h3>
-        <p>MIME, Links, Betreff &amp; Spam-Heuristiken.</p>
+        <p>MIME, Links &amp; Spam-Score.</p>
       </div>
       <div class="mp-feat">
-        <div class="mp-feat-icon neutral">{ }</div>
+        <div class="mp-feat-icon neu">{ }</div>
         <h3>Rohdaten</h3>
-        <p>Header, Source &amp; JSON-Export – kopierbar.</p>
+        <p>Header, Source &amp; JSON.</p>
       </div>
     </div>
 
   </main>
 
 </div>
-<script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>
