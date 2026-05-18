@@ -1,4 +1,4 @@
-﻿services:
+services:
   mailprobe:
     image: ${MAILPROBE_IMAGE:-ghcr.io/brightcolor/mailprobe:latest}
     pull_policy: always
@@ -6,10 +6,10 @@
     env_file:
       - .env
     ports:
-      - "${HTTP_PORT:-8080}:8080"
+      - "${HTTP_PORT:-9090}:8080"
       - "${SMTP_PORT:-2525}:2525"
     volumes:
-      - mailprobe_data:/data
+      - ./data:/data
       # Mount certificates only when ENABLE_TLS=true, then set TLS_CERT_FILE/TLS_KEY_FILE in .env.
       # - ./certs:/certs:ro
     restart: unless-stopped
@@ -21,7 +21,3 @@
       start_period: 20s
     mem_limit: 512m
     cpus: 0.50
-
-volumes:
-  mailprobe_data:
-    driver: local

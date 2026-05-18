@@ -4,102 +4,22 @@ set -euo pipefail
 REPO_URL="${REPO_URL:-https://github.com/brightcolor/mailprobev2.git}"
 BRANCH="${BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/mailprobe}"
-HTTP_PORT="${HTTP_PORT:-8080}"
+HTTP_PORT="${HTTP_PORT:-9090}"
 SMTP_PORT="${SMTP_PORT:-2525}"
-MAILPROBE_IMAGE="${MAILPROBE_IMAGE:-ghcr.io/brightcolor/mailprobe:latest}"
+MAILPROBE_IMAGE="${MAILPROBE_IMAGE:-ghcr.io/brightcolor/mailprobev2:latest}"
 SMTP_DOMAIN="${SMTP_DOMAIN:-}"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}"
 ENABLE_TLS="${ENABLE_TLS:-false}"
 TLS_CERT_FILE="${TLS_CERT_FILE:-}"
 TLS_KEY_FILE="${TLS_KEY_FILE:-}"
 FORCE_HTTPS="${FORCE_HTTPS:-false}"
-HEALTHCHECK_URL="${HEALTHCHECK_URL:-}"
+HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:${HTTP_PORT}/healthz}"
 ENABLE_RSPAMD="${ENABLE_RSPAMD:-}"
 ENABLE_REDIS="${ENABLE_REDIS:-}"
 DISPLAY_WEB_URL=""
 
-# Original requested ports (preserved for change-detection in summary)
-_HTTP_PORT_REQUESTED="$HTTP_PORT"
-_SMTP_PORT_REQUESTED="$SMTP_PORT"
-
 have_cmd() {
   command -v "$1" >/dev/null 2>&1
-}
-
-# ── Port utilities ─────────────────────────────────────────────────────────────
-
-# Returns 0 (true) if something is already listening/allocated on $1
-port_in_use() {
-  local port="$1"
-
-  # 1. Ask the kernel via ss (covers host processes and docker-proxy)
-  if have_cmd ss; then
-    ss -tlnH 2>/dev/null | awk '{print $4}' | grep -qE "(^|:)${port}$" && return 0
-  fi
-
-  # 2. Also check netstat as a fallback (older distros without ss)
-  if have_cmd netstat; then
-    netstat -tlnp 2>/dev/null | awk '{print $4}' | grep -qE "(^|:)${port}$" && return 0
-  fi
-
-  # 3. Query Docker directly – catches running containers whose docker-proxy
-  #    may not appear in ss until it has fully started.
-  if have_cmd docker && docker info >/dev/null 2>&1; then
-    docker ps --format '{{.Ports}}' 2>/dev/null \
-      | grep -qE "(0\.0\.0\.0|::|\*):${port}->" && return 0
-  fi
-
-  # 4. /dev/tcp connect attempt (bash builtin, no external deps)
-  if ( timeout 1 bash -c "exec 3<>/dev/tcp/127.0.0.1/$port" 2>/dev/null ); then
-    return 0
-  fi
-
-  return 1
-}
-
-# Prints a free port: $1 if available, otherwise a random port in [10000,49999]
-# that does not collide with $2 (optional second port to avoid)
-find_free_port() {
-  local preferred="$1"
-  local avoid="${2:-0}"
-
-  if ! port_in_use "$preferred"; then
-    echo "$preferred"
-    return
-  fi
-
-  # Try up to 30 random candidates in the ephemeral-safe range
-  local attempt
-  for attempt in $(seq 1 30); do
-    # RANDOM is 0-32767; shift into [10000,49999]
-    local candidate=$(( 10000 + (RANDOM * 2) % 40000 ))
-    [[ "$candidate" -eq "$avoid" ]] && continue
-    if ! port_in_use "$candidate"; then
-      echo "$candidate"
-      return
-    fi
-  done
-
-  # Last resort: ask the kernel for a free port via Python3 (always present in
-  # Docker-capable environments) then close it immediately.
-  if have_cmd python3; then
-    python3 - "$avoid" <<'PY'
-import socket, sys
-avoid = int(sys.argv[1]) if len(sys.argv) > 1 else 0
-for _ in range(10):
-    s = socket.socket()
-    s.bind(('', 0))
-    p = s.getsockname()[1]
-    s.close()
-    if p != avoid:
-        print(p)
-        break
-PY
-    return
-  fi
-
-  # Give up – return the preferred port and let Docker complain if it's busy
-  echo "$preferred"
 }
 
 log() {
@@ -125,8 +45,8 @@ prompt_yes_no() {
     answer="${answer:-$default_value}"
     case "${answer,,}" in
       y|yes) echo "true"; return ;;
-      n|no) echo "false"; return ;;
-      *) echo "Please answer y or n." ;;
+      n|no)  echo "false"; return ;;
+      *)     echo "Please answer y or n." ;;
     esac
   done
 }
@@ -220,38 +140,6 @@ infer_display_web_url() {
   DISPLAY_WEB_URL="${PUBLIC_BASE_URL:-http://${ip}:${HTTP_PORT}}"
 }
 
-resolve_ports() {
-  log "Checking port availability..."
-
-  # If a previous MailProbe stack is running from this install dir, bring it
-  # down first so its ports don't block our own re-deployment.
-  if [[ -d "$INSTALL_DIR" ]] && have_cmd docker && docker info >/dev/null 2>&1; then
-    if docker_cmd compose -f "$INSTALL_DIR/docker-compose.yml" ps -q 2>/dev/null | grep -q .; then
-      log "Stopping existing MailProbe stack before port check..."
-      docker_cmd compose -f "$INSTALL_DIR/docker-compose.yml" down 2>/dev/null || true
-    fi
-  fi
-
-  local new_http
-  new_http="$(find_free_port "$HTTP_PORT" "$SMTP_PORT")"
-  if [[ "$new_http" != "$HTTP_PORT" ]]; then
-    log "Port $HTTP_PORT (HTTP) is already in use – using $new_http instead"
-    HTTP_PORT="$new_http"
-  fi
-
-  local new_smtp
-  new_smtp="$(find_free_port "$SMTP_PORT" "$HTTP_PORT")"
-  if [[ "$new_smtp" != "$SMTP_PORT" ]]; then
-    log "Port $SMTP_PORT (SMTP) is already in use – using $new_smtp instead"
-    SMTP_PORT="$new_smtp"
-  fi
-
-  # Keep the healthcheck URL in sync with the final HTTP port
-  if [[ -z "$HEALTHCHECK_URL" ]]; then
-    HEALTHCHECK_URL="http://127.0.0.1:${HTTP_PORT}/healthz"
-  fi
-}
-
 set_env_key() {
   local key="$1"
   local value="$2"
@@ -272,19 +160,22 @@ setup_env_file() {
 
   infer_display_web_url
 
-  set_env_key "HTTP_PORT" "$HTTP_PORT"
-  set_env_key "SMTP_PORT" "$SMTP_PORT"
-  set_env_key "SMTP_DOMAIN" "$SMTP_DOMAIN"
+  set_env_key "HTTP_PORT"       "$HTTP_PORT"
+  set_env_key "SMTP_PORT"       "$SMTP_PORT"
+  set_env_key "SMTP_DOMAIN"     "$SMTP_DOMAIN"
   set_env_key "PUBLIC_BASE_URL" "$PUBLIC_BASE_URL"
-  set_env_key "ENABLE_TLS" "$ENABLE_TLS"
-  set_env_key "TLS_CERT_FILE" "$TLS_CERT_FILE"
-  set_env_key "TLS_KEY_FILE" "$TLS_KEY_FILE"
-  set_env_key "FORCE_HTTPS" "$FORCE_HTTPS"
+  set_env_key "ENABLE_TLS"      "$ENABLE_TLS"
+  set_env_key "TLS_CERT_FILE"   "$TLS_CERT_FILE"
+  set_env_key "TLS_KEY_FILE"    "$TLS_KEY_FILE"
+  set_env_key "FORCE_HTTPS"     "$FORCE_HTTPS"
   set_env_key "HEALTHCHECK_URL" "$HEALTHCHECK_URL"
   set_env_key "MAILPROBE_IMAGE" "$MAILPROBE_IMAGE"
-  set_env_key "ENABLE_RSPAMD" "$ENABLE_RSPAMD"
-  set_env_key "ENABLE_REDIS" "$ENABLE_REDIS"
-  set_env_key "REDIS_ADDR" "redis:6379"
+  set_env_key "ENABLE_RSPAMD"   "$ENABLE_RSPAMD"
+  set_env_key "ENABLE_REDIS"    "$ENABLE_REDIS"
+  set_env_key "REDIS_ADDR"      "redis:6379"
+
+  # Ensure data directory exists for the bind mount
+  mkdir -p "$INSTALL_DIR/data"
 }
 
 setup_optional_services_override() {
@@ -322,17 +213,8 @@ YAML
     expose:
       - "6379"
     volumes:
-      - mailprobe_redis_data:/data
+      - ./data/redis:/data
     mem_limit: 128m
-YAML
-  fi
-
-  if [[ "$ENABLE_REDIS" == "true" ]]; then
-    cat >> "$override_file" <<'YAML'
-
-volumes:
-  mailprobe_redis_data:
-    driver: local
 YAML
   fi
 }
@@ -367,19 +249,9 @@ main() {
   prepare_docker_service
   install_compose_if_needed
   ensure_repo
-  resolve_ports
   setup_env_file
   setup_optional_services_override
   start_stack
-
-  # Build port-change notices for the summary
-  local http_note="" smtp_note=""
-  if [[ "$HTTP_PORT" != "$_HTTP_PORT_REQUESTED" ]]; then
-    http_note="  ⚠  Port $_HTTP_PORT_REQUESTED was busy – using $HTTP_PORT instead"
-  fi
-  if [[ "$SMTP_PORT" != "$_SMTP_PORT_REQUESTED" ]]; then
-    smtp_note="  ⚠  Port $_SMTP_PORT_REQUESTED was busy – using $SMTP_PORT instead"
-  fi
 
   cat <<EOF
 
@@ -388,10 +260,9 @@ main() {
 ══════════════════════════════════════════════
 
   Install path : $INSTALL_DIR
-  Web UI       : $DISPLAY_WEB_URL${http_note:+
-$http_note}
-  SMTP port    : $SMTP_PORT (host)${smtp_note:+
-$smtp_note}
+  Data dir     : $INSTALL_DIR/data
+  Web UI       : $DISPLAY_WEB_URL
+  SMTP port    : $SMTP_PORT (host)
   SMTP address : ${SMTP_DOMAIN:+<token>@$SMTP_DOMAIN}${SMTP_DOMAIN:-<token>@<web-host>}
   Rspamd       : $ENABLE_RSPAMD
   Redis        : $ENABLE_REDIS
@@ -401,7 +272,7 @@ $smtp_note}
 Next steps:
   1. Point your DNS A + MX records to this server.
   2. Route inbound SMTP to host port $SMTP_PORT
-     (or forward host :25 → container :2525).
+     (or forward host :25 -> container :2525).
   3. Open $DISPLAY_WEB_URL and generate a test mailbox.
 
 EOF
