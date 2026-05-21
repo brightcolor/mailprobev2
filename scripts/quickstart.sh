@@ -5,7 +5,7 @@ REPO_URL="${REPO_URL:-https://github.com/brightcolor/mailprobev2.git}"
 BRANCH="${BRANCH:-main}"
 INSTALL_DIR="${INSTALL_DIR:-/opt/mailprobe}"
 HTTP_PORT="${HTTP_PORT:-9090}"
-SMTP_PORT="${SMTP_PORT:-2525}"
+SMTP_PORT="${SMTP_PORT:-25}"   # External mail servers connect on port 25
 MAILPROBE_IMAGE="${MAILPROBE_IMAGE:-ghcr.io/brightcolor/mailprobev2:latest}"
 SMTP_DOMAIN="${SMTP_DOMAIN:-}"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-}"
@@ -270,10 +270,13 @@ main() {
 ══════════════════════════════════════════════
 
 Next steps:
-  1. Point your DNS A + MX records to this server.
-  2. Route inbound SMTP to host port $SMTP_PORT
-     (or forward host :25 -> container :2525).
-  3. Open $DISPLAY_WEB_URL and generate a test mailbox.
+  1. Point your DNS A + MX records to this server's IP.
+  2. Make sure port $SMTP_PORT is open in your firewall.
+     External mail servers (Gmail, etc.) connect on port 25 —
+     if you changed SMTP_PORT away from 25, route :25 -> :$SMTP_PORT.
+  3. If another MTA (postfix/exim) is running, stop it first:
+       sudo systemctl stop postfix && sudo systemctl disable postfix
+  4. Open $DISPLAY_WEB_URL and generate a test mailbox.
 
 EOF
 
