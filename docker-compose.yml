@@ -7,7 +7,7 @@ services:
       - .env
     ports:
       - "${HTTP_PORT:-9090}:8080"
-      - "${SMTP_PORT:-2525}:2525"
+      - "${SMTP_PORT:-25}:2525"
     volumes:
       - ./data:/data
       # Mount certificates only when ENABLE_TLS=true, then set TLS_CERT_FILE/TLS_KEY_FILE in .env.
