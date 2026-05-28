@@ -54,6 +54,26 @@ async function copyAddress() {
   const text = document.getElementById('mail-address')?.innerText?.trim();
   if (!text) return;
   const ok = await writeClipboardWithFallback(text);
+
+  // Visual flash on the clickable box (home page)
+  const box = document.querySelector('.mp-addr-box');
+  if (box && ok) {
+    const hint = box.querySelector('.mp-addr-copy-hint i');
+    if (hint) { hint.className = 'bi bi-check2'; }
+    box.classList.add('mp-copied');
+    setTimeout(() => {
+      box.classList.remove('mp-copied');
+      if (hint) { hint.className = 'bi bi-clipboard'; }
+    }, 1800);
+  }
+
+  // Visual flash on the inline address chip (mailbox page)
+  const chip = document.querySelector('.mp-addr-inline');
+  if (chip && ok) {
+    chip.classList.add('mp-copied');
+    setTimeout(() => chip.classList.remove('mp-copied'), 1800);
+  }
+
   setTransientStatus(ok ? 'Adresse kopiert.' : 'Kopieren fehlgeschlagen – bitte manuell markieren.', ok ? 'ok' : 'warn');
 }
 
@@ -144,6 +164,12 @@ async function createNewAddress() {
 // ── Status UI helpers ─────────────────────────────────────────────────────────
 
 function setStatusDot(state) {
+  // New animated wait icon
+  const waitIcon = document.getElementById('mp-wait-icon');
+  if (waitIcon) {
+    waitIcon.dataset.state = state || 'waiting';
+  }
+  // Legacy dot (kept for backwards compat in case it exists on the page)
   const dot = document.querySelector('.status-dot');
   if (!dot) return;
   dot.className = 'status-dot';

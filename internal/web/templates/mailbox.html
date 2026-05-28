@@ -55,9 +55,6 @@
             <button id="new-address-btn" class="btn btn-secondary btn-sm" type="button">
               <i class="bi bi-arrow-clockwise me-1"></i>Neue Adresse
             </button>
-            <button class="btn btn-outline-secondary btn-sm" type="button" onclick="copyAddress()">
-              <i class="bi bi-clipboard me-1"></i>Kopieren
-            </button>
           </div>
         </div>
       </div>
@@ -72,11 +69,19 @@
              data-token="{{.Mailbox.Token}}"
              data-latest-message-id="{{if .Messages}}{{(index .Messages 0).Message.ID}}{{else}}0{{end}}">
           <div class="d-flex align-items-start align-items-sm-center gap-3 flex-wrap">
-            <span class="status-dot dot-waiting mt-1 mt-sm-0"></span>
+            <span class="mp-wait-icon" id="mp-wait-icon" aria-hidden="true">
+              <i class="bi bi-envelope-arrow-down"></i>
+              <span class="mp-wait-ring mp-wait-ring-1"></span>
+              <span class="mp-wait-ring mp-wait-ring-2"></span>
+              <span class="mp-wait-ring mp-wait-ring-3"></span>
+            </span>
             <div class="flex-grow-1">
               <p id="status-text" class="mb-0 fw-semibold">Warte auf eingehende E-Mail &hellip;</p>
               <small class="text-secondary">
-                Sende deine Testmail an <code id="mail-address">{{.Mailbox.Address}}</code>
+                Sende deine Testmail an
+                <code id="mail-address" class="mp-addr-inline" onclick="copyAddress()"
+                      title="Klicken zum Kopieren" role="button" tabindex="0"
+                      onkeydown="if(event.key==='Enter'||event.key===' ')copyAddress()">{{.Mailbox.Address}}</code>
                 &middot; Live-Status &middot; aktualisiert automatisch
               </small>
             </div>
