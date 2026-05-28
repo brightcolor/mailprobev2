@@ -60,7 +60,11 @@ type HomeData struct {
 }
 
 type PrivacyData struct {
-	AppName string
+	AppName              string
+	OperatorName         string
+	OperatorAddress      string
+	OperatorEmail        string
+	HideTemplateNote     bool
 }
 
 type MailboxData struct {
@@ -560,7 +564,13 @@ func (s *Server) privacyPage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	s.render(w, "privacy", PrivacyData{AppName: s.cfg.AppName})
+	s.render(w, "privacy", PrivacyData{
+		AppName:          s.cfg.AppName,
+		OperatorName:     s.cfg.PrivacyOperatorName,
+		OperatorAddress:  s.cfg.PrivacyOperatorAddress,
+		OperatorEmail:    s.cfg.PrivacyOperatorEmail,
+		HideTemplateNote: s.cfg.PrivacyHideTemplateNote,
+	})
 }
 
 func (s *Server) reportAPI(w http.ResponseWriter, r *http.Request) {

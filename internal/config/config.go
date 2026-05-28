@@ -39,6 +39,11 @@ type Config struct {
 	RspamdPassword       string
 	AlertWebhookURL      string
 	TrustedProxyCIDRs    []string
+	// Privacy page operator info
+	PrivacyOperatorName    string
+	PrivacyOperatorAddress string
+	PrivacyOperatorEmail   string
+	PrivacyHideTemplateNote bool
 }
 
 func Load() (Config, error) {
@@ -71,8 +76,12 @@ func Load() (Config, error) {
 		EnableRspamd:         getEnvBool("ENABLE_RSPAMD", false),
 		RspamdURL:            getEnv("RSPAMD_URL", "http://rspamd:11334/checkv2"),
 		RspamdPassword:       getEnv("RSPAMD_PASSWORD", ""),
-		AlertWebhookURL:      getEnv("ALERT_WEBHOOK_URL", ""),
-		TrustedProxyCIDRs:    splitCSV(getEnv("TRUSTED_PROXY_CIDRS", "")),
+		AlertWebhookURL:         getEnv("ALERT_WEBHOOK_URL", ""),
+		TrustedProxyCIDRs:       splitCSV(getEnv("TRUSTED_PROXY_CIDRS", "")),
+		PrivacyOperatorName:     getEnv("PRIVACY_OPERATOR_NAME", ""),
+		PrivacyOperatorAddress:  getEnv("PRIVACY_OPERATOR_ADDRESS", ""),
+		PrivacyOperatorEmail:    getEnv("PRIVACY_OPERATOR_EMAIL", ""),
+		PrivacyHideTemplateNote: getEnvBool("PRIVACY_HIDE_TEMPLATE_NOTE", false),
 	}
 
 	if cfg.EnableTLS && (cfg.TLSCertFile == "" || cfg.TLSKeyFile == "") {

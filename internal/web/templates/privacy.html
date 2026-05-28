@@ -53,21 +53,31 @@
           </div>
           <div class="card-body mp-privacy-body">
 
+            {{if not .HideTemplateNote}}
             <div class="alert alert-info d-flex gap-2 mb-4" role="note">
               <i class="bi bi-info-circle-fill flex-shrink-0 mt-1"></i>
               <div>
-                <strong>Selbst-gehostete Software.</strong>
-                {{.AppName}} ist eine selbst-gehostete Open-Source-Anwendung.
-                Verantwortlich für den Betrieb dieser Instanz ist die Person oder Organisation,
-                die diese Software auf ihrem eigenen Server betreibt
-                (<strong>der Betreiber</strong>).
-                Die Kontaktdaten des Betreibers sind diesem nicht automatisch bekannt –
-                bitte wende dich an die Person, die dir diesen Link mitgeteilt hat.
+                <strong>Betreiber-Hinweis.</strong>
+                Diese Datenschutzerklärung ist eine Vorlage.
+                Trage deine Kontaktdaten über die Umgebungsvariablen
+                <code>PRIVACY_OPERATOR_NAME</code>, <code>PRIVACY_OPERATOR_ADDRESS</code>
+                und <code>PRIVACY_OPERATOR_EMAIL</code> in der <code>.env</code> ein.
+                Setze <code>PRIVACY_HIDE_TEMPLATE_NOTE=true</code>, um diesen Hinweis zu
+                entfernen.
               </div>
             </div>
+            {{end}}
 
             <!-- 1 -->
             <h2>1. Wer ist verantwortlich?</h2>
+            {{if .OperatorName}}
+            <p>Verantwortliche Stelle im Sinne der DSGVO (Art. 4 Nr. 7 DSGVO):</p>
+            <address class="mp-operator-address">
+              <strong>{{.OperatorName}}</strong>
+              {{if .OperatorAddress}}<br>{{.OperatorAddress}}{{end}}
+              {{if .OperatorEmail}}<br><a href="mailto:{{.OperatorEmail}}">{{.OperatorEmail}}</a>{{end}}
+            </address>
+            {{else}}
             <p>
               Verantwortliche Stelle im Sinne der DSGVO ist der Betreiber dieser
               {{.AppName}}-Instanz. Da es sich um selbst-gehostete Software handelt,
@@ -75,9 +85,12 @@
               nicht der Entwickler der Software.
             </p>
             <p>
-              Die Kontaktdaten des Betreibers müssen hier vom Betreiber selbst ergänzt werden,
-              sofern diese Instanz öffentlich oder für mehrere Personen zugänglich ist.
+              Die Kontaktdaten des Betreibers können über die Umgebungsvariablen
+              <code>PRIVACY_OPERATOR_NAME</code>, <code>PRIVACY_OPERATOR_ADDRESS</code>
+              und <code>PRIVACY_OPERATOR_EMAIL</code> in der <code>.env</code>-Datei
+              hinterlegt werden.
             </p>
+            {{end}}
 
             <!-- 2 -->
             <h2>2. Welche Daten werden verarbeitet?</h2>
