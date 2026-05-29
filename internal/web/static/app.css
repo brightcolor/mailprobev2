@@ -117,53 +117,47 @@ body,
 .mp-status-dot.info { background-color: rgba(var(--bs-info-rgb),    .12); color: var(--bs-info); }
 
 /* ── Wait icon with ripple animation (mailbox page) ─────────────────────── */
-/*
- * box-shadow is used for the ripple — it is NOT clipped by any parent
- * overflow:hidden (unlike transform-based child elements).
- */
 .mp-wait-wrap {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 60px;
-  height: 60px;
+  width: 64px;
+  height: 64px;
   flex-shrink: 0;
 }
 .mp-wait-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 52px;
-  height: 52px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
-  background: rgba(var(--bs-primary-rgb), .12);
-  color: var(--bs-primary);
+  /* NOTE: NO box-shadow in transition — it conflicts with the animation */
+  background: rgba(13,110,253,.15);
+  color: #0d6efd;
   font-size: 1.5rem;
   flex-shrink: 0;
-  animation: mp-ripple 2.2s ease-out infinite;
-  transition: background .3s, color .3s, box-shadow .3s;
+  animation: mp-ripple 2s ease-in-out infinite;
 }
+/* Hard-code primary colour so CSS vars can't break the keyframe */
 @keyframes mp-ripple {
-  0%  { box-shadow: 0 0 0 0px  rgba(var(--bs-primary-rgb),.45),
-                    0 0 0 0px  rgba(var(--bs-primary-rgb),.20); }
-  45% { box-shadow: 0 0 0 14px rgba(var(--bs-primary-rgb),.18),
-                    0 0 0 0px  rgba(var(--bs-primary-rgb),.42); }
-  80% { box-shadow: 0 0 0 26px rgba(var(--bs-primary-rgb),0),
-                    0 0 0 14px rgba(var(--bs-primary-rgb),.10); }
- 100% { box-shadow: 0 0 0 0px  rgba(var(--bs-primary-rgb),0),
-                    0 0 0 26px rgba(var(--bs-primary-rgb),0); }
+  0%   { box-shadow: 0 0 0 0   rgba(13,110,253,.6); }
+  70%  { box-shadow: 0 0 0 22px rgba(13,110,253,0); }
+  100% { box-shadow: 0 0 0 0   rgba(13,110,253,0); }
 }
 
 /* State variants */
 .mp-wait-wrap[data-state="received"] .mp-wait-icon {
-  background: rgba(var(--bs-warning-rgb), .12);
-  color: var(--bs-warning);
-  animation: none; box-shadow: none;
+  background: rgba(255,193,7,.15);
+  color: #ffc107;
+  animation: none;
+  box-shadow: none;
 }
 .mp-wait-wrap[data-state="ready"] .mp-wait-icon {
-  background: rgba(var(--bs-success-rgb), .12);
-  color: var(--bs-success);
-  animation: none; box-shadow: none;
+  background: rgba(25,135,84,.15);
+  color: #198754;
+  animation: none;
+  box-shadow: none;
 }
 
 /* Legacy dot (kept so old markup doesn't break) */
