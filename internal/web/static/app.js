@@ -323,8 +323,8 @@ function _stopStepAnimation() {
 
 function handleCheckStatusEvent(data) {
   if (data.latest_report_path) {
-    // Warte bis die Schritte fertig sind, dann weiterleiten
-    if (_stepDone || !_stepTimer) {
+    // Weiterleiten — aber erst wenn Schritte fertig sind
+    if (_stepDone || (!_stepTimer && _stepIdx === 0)) {
       window.location.href = data.latest_report_path;
     } else {
       _pendingHref = data.latest_report_path;
@@ -332,21 +332,26 @@ function handleCheckStatusEvent(data) {
     return;
   }
   if (data.latest_message_id) {
-    // Mail da, noch kein Report → Animation läuft weiter
+    // Mail empfangen — jetzt erst Schritt-Animation starten (einmalig)
+    if (!_stepTimer && !_stepDone) {
+      document.getElementById('check-wait-msg')?.classList.add('d-none');
+      document.getElementById('check-steps')?.classList.remove('d-none');
+      _startStepAnimation();
+    }
     return;
   }
-  // Noch keine Mail — Animation läuft weiter, nach Ablauf Status zeigen
-  if (_stepDone) {
-    setCheckUIState(true, 'Noch keine Mail eingegangen – ich warte weiter …', 'warn');
-  }
+  // Noch keine Mail
 }
 
 function startCheckLoop() {
   const token = document.getElementById('check-panel')?.dataset?.token;
   if (!token) return;
 
+  // Zurücksetzen & Spinner zeigen — Schritte kommen erst wenn Mail da
+  _stopStepAnimation();
+  document.getElementById('check-wait-msg')?.classList.remove('d-none');
+  document.getElementById('check-steps')?.classList.add('d-none');
   setCheckUIState(true, '', 'warn');
-  _startStepAnimation();
   if (mailboxPollTimer) clearInterval(mailboxPollTimer);
 
   const run = async () => {

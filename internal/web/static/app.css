@@ -148,30 +148,31 @@ body,
 
 /* ── Analysis step list (home page check loop) ──────────────────────────── */
 .mp-check-steps {
-  display: flex;
+  display: inline-flex;   /* shrink to content width */
   flex-direction: column;
-  gap: .3rem;
-  max-height: 260px;
-  overflow: hidden;
+  gap: .35rem;
+  text-align: left;
+  /* centred by mx-auto on the element itself */
 }
 .mp-check-step {
   display: flex;
   align-items: center;
-  gap: .5rem;
+  gap: .55rem;
   font-size: .8125rem;
   color: var(--bs-secondary-color);
+  white-space: nowrap;   /* no wrapping → no clipping */
   transition: color .2s;
 }
 .mp-check-step.active {
   color: var(--bs-primary);
-  font-weight: 500;
+  font-weight: 600;
 }
 .mp-check-step.done {
   color: var(--bs-success);
 }
 .mp-step-spin {
-  width: 11px !important;
-  height: 11px !important;
+  width: 12px !important;
+  height: 12px !important;
   border-width: 1.5px !important;
   flex-shrink: 0;
 }
