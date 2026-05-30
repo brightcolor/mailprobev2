@@ -286,27 +286,35 @@ function _renderSteps(upTo) {
   el.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
+function _stepDelay() {
+  // Random pause per step: 380–820 ms → total 4.5–9.8 s across 12 steps
+  return Math.floor(Math.random() * 440) + 380;
+}
+
 function _startStepAnimation() {
-  _stepIdx   = 0;
-  _stepDone  = false;
+  _stepIdx     = 0;
+  _stepDone    = false;
   _pendingHref = null;
   _renderSteps(0);
 
-  _stepTimer = setInterval(() => {
-    _stepIdx++;
-    if (_stepIdx >= ANALYSIS_STEPS.length) {
-      clearInterval(_stepTimer);
-      _stepTimer = null;
-      _stepDone  = true;
-      if (_pendingHref) { window.location.href = _pendingHref; }
-      return;
-    }
-    _renderSteps(_stepIdx);
-  }, 580); // 12 × 580 ms ≈ 7 s
+  function scheduleNext() {
+    _stepTimer = setTimeout(() => {
+      _stepIdx++;
+      if (_stepIdx >= ANALYSIS_STEPS.length) {
+        _stepTimer = null;
+        _stepDone  = true;
+        if (_pendingHref) { window.location.href = _pendingHref; }
+        return;
+      }
+      _renderSteps(_stepIdx);
+      scheduleNext();
+    }, _stepDelay());
+  }
+  scheduleNext();
 }
 
 function _stopStepAnimation() {
-  if (_stepTimer) { clearInterval(_stepTimer); _stepTimer = null; }
+  if (_stepTimer) { clearTimeout(_stepTimer); _stepTimer = null; }
   _stepDone = false;
   _pendingHref = null;
   const el = document.getElementById('check-steps');
