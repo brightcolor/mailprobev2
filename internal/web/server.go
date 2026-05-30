@@ -1388,3 +1388,13 @@ func (r *statusRecorder) WriteHeader(status int) {
 	r.status = status
 	r.ResponseWriter.WriteHeader(status)
 }
+
+// Flush forwards to the underlying ResponseWriter so that Server-Sent Events
+// (mailboxEvents) keep working when wrapped by the logging middleware.
+// Embedding http.ResponseWriter does not promote Flush(), so it must be
+// implemented explicitly.
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
