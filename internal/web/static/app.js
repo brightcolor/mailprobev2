@@ -296,11 +296,11 @@ function _statusClass(status) {
   }
 }
 
-let _stepTimer    = null;
-let _stepIdx      = 0;
-let _stepDone     = false;
-let _pendingHref  = null;
-let _reportChecks = null;
+let _stepTimer      = null;
+let _stepIdx        = 0;
+let _animStarted    = false;
+let _pendingHref    = null;
+let _reportChecks   = null;
 
 function _reportApiUrl(reportPath) {
   const m = String(reportPath).match(/\/report\/([^?/]+)\?msg=([^&]+)/);
@@ -318,16 +318,18 @@ async function _fetchReportChecks(reportPath) {
   } catch (_) {}
 }
 
-function _renderSteps(upTo) {
+// Render steps 0..upTo; completed steps (< upTo) show real status,
+// current step (= upTo) shows the spinning indicator.
+function _renderSteps(upTo, checks) {
   const el = document.getElementById('check-steps');
   if (!el) return;
   el.innerHTML = ANALYSIS_STEPS.slice(0, upTo + 1).map((s, i) => {
     if (i < upTo) {
-      return `<div class="mp-check-step done">
-        <i class="bi bi-check2-circle text-success"></i>
-        <span>${s.label}</span>
-      </div>`;
+      // Already processed — show real result
+      const status = _worstStatus(checks, s.matchIds) || 'pass';
+      return `<div class="${_statusClass(status)}">${_statusIcon(status)}<span>${s.label}</span></div>`;
     }
+    // Currently active
     return `<div class="mp-check-step active">
       <span class="spinner-border spinner-border-sm text-primary mp-step-spin" role="status"></span>
       <span>${s.label} …</span>
@@ -336,55 +338,32 @@ function _renderSteps(upTo) {
   el.lastElementChild?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
-function _renderStepsWithResults(checks) {
-  const el = document.getElementById('check-steps');
-  if (!el) return;
-  el.innerHTML = ANALYSIS_STEPS.map((s) => {
-    const status = _worstStatus(checks, s.matchIds) || 'pass';
-    return `<div class="${_statusClass(status)}">
-      ${_statusIcon(status)}
-      <span>${s.label}</span>
-    </div>`;
-  }).join('');
-}
-
 function _stepDelay() {
   return Math.floor(Math.random() * 440) + 380;
 }
 
-function _onAnimationComplete() {
-  const doRedirect = () => { if (_pendingHref) window.location.href = _pendingHref; };
-
-  if (_reportChecks) {
-    _renderStepsWithResults(_reportChecks);
-    setTimeout(doRedirect, 1800);
-  } else if (_pendingHref) {
-    // Fetch might still be in flight — give it 600 ms then redirect anyway
-    setTimeout(() => {
-      if (_reportChecks) _renderStepsWithResults(_reportChecks);
-      setTimeout(doRedirect, _reportChecks ? 1800 : 0);
-    }, 600);
-  }
-  // If no report yet, just stay in "waiting" state — poll will trigger again
-}
-
-function _startStepAnimation() {
-  _stepIdx      = 0;
-  _stepDone     = false;
-  _pendingHref  = null;
-  _reportChecks = null;
-  _renderSteps(0);
+function _startStepAnimation(checks) {
+  _stepIdx     = 0;
+  _animStarted = true;
+  _renderSteps(0, checks);
 
   function scheduleNext() {
     _stepTimer = setTimeout(() => {
       _stepIdx++;
       if (_stepIdx >= ANALYSIS_STEPS.length) {
+        // All steps done — show real result for last step, then navigate
         _stepTimer = null;
-        _stepDone  = true;
-        _onAnimationComplete();
+        const el = document.getElementById('check-steps');
+        if (el) {
+          const last = ANALYSIS_STEPS[ANALYSIS_STEPS.length - 1];
+          const status = _worstStatus(checks, last.matchIds) || 'pass';
+          el.lastElementChild.className = _statusClass(status);
+          el.lastElementChild.innerHTML = `${_statusIcon(status)}<span>${last.label}</span>`;
+        }
+        setTimeout(() => { if (_pendingHref) window.location.href = _pendingHref; }, 900);
         return;
       }
-      _renderSteps(_stepIdx);
+      _renderSteps(_stepIdx, checks);
       scheduleNext();
     }, _stepDelay());
   }
@@ -393,30 +372,29 @@ function _startStepAnimation() {
 
 function _stopStepAnimation() {
   if (_stepTimer) { clearTimeout(_stepTimer); _stepTimer = null; }
-  _stepDone = false; _pendingHref = null; _reportChecks = null;
+  _animStarted = false; _pendingHref = null; _reportChecks = null;
   const el = document.getElementById('check-steps');
   if (el) el.innerHTML = '';
 }
 
 function handleCheckStatusEvent(data) {
   if (data.latest_report_path) {
-    // Fetch report data in background so results can be shown in the step list
-    if (!_reportChecks && !_pendingHref) {
-      _fetchReportChecks(data.latest_report_path);
-    }
-    if (_stepDone) {
-      _onAnimationComplete();
-    } else {
+    // Report ready — fetch real check data, then start animation (once)
+    if (!_animStarted) {
       _pendingHref = data.latest_report_path;
+      _fetchReportChecks(data.latest_report_path).then(() => {
+        document.getElementById('check-wait-msg')?.classList.add('d-none');
+        document.getElementById('check-steps')?.classList.remove('d-none');
+        _startStepAnimation(_reportChecks || []);
+      });
     }
     return;
   }
   if (data.latest_message_id) {
-    // Mail empfangen — Schritt-Animation starten (einmalig)
-    if (!_stepTimer && !_stepDone) {
-      document.getElementById('check-wait-msg')?.classList.add('d-none');
-      document.getElementById('check-steps')?.classList.remove('d-none');
-      _startStepAnimation();
+    // Mail empfangen, Report noch nicht fertig — Hinweis aktualisieren
+    const waitMsg = document.getElementById('check-wait-msg');
+    if (waitMsg && !_animStarted) {
+      waitMsg.innerHTML = 'Mail empfangen &ndash; Analyse läuft &hellip;';
     }
     return;
   }
@@ -437,7 +415,7 @@ function startCheckLoop() {
     try {
       const data = await fetchMailboxStatus(token);
       handleCheckStatusEvent(data);
-      if (data.latest_report_path && _stepDone) {
+      if (data.latest_report_path && _animStarted) {
         clearInterval(mailboxPollTimer);
         mailboxPollTimer = null;
       }
