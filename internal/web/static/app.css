@@ -132,9 +132,15 @@ body,
   inset: 0;
   width: 72px;
   height: 72px;
-  color: #0d6efd;                   /* primary — hard-coded so no cascade issues */
-  animation: mp-spin 1.3s linear infinite;
+  color: #0d6efd;
+  /* CSS rotation as additional layer (SMIL in the SVG is the primary driver) */
+  animation: mp-spin 1.3s linear infinite !important;
   transform-origin: center;
+  transform-box: fill-box;
+}
+/* Never let prefers-reduced-motion suppress the spinner */
+@media (prefers-reduced-motion: reduce) {
+  .mp-spinner-svg { animation: mp-spin 1.3s linear infinite !important; }
 }
 @keyframes mp-spin { to { transform: rotate(360deg); } }
 

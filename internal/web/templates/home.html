@@ -121,7 +121,11 @@
                     <svg class="mp-spinner-svg" viewBox="0 0 72 72" fill="none" aria-hidden="true">
                       <circle cx="36" cy="36" r="30" stroke="currentColor" stroke-width="4.5" opacity="0.18"/>
                       <circle cx="36" cy="36" r="30" stroke="currentColor" stroke-width="4.5"
-                              stroke-linecap="round" stroke-dasharray="120 69"/>
+                              stroke-linecap="round" stroke-dasharray="120 69">
+                        <animateTransform attributeName="transform" type="rotate"
+                                          from="0 36 36" to="360 36 36"
+                                          dur="1.3s" repeatCount="indefinite"/>
+                      </circle>
                     </svg>
                     <i class="mp-inbox-env-icon bi bi-envelope"></i>
                   </div>
