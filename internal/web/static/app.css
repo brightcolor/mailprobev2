@@ -116,35 +116,41 @@ body,
 .mp-status-dot.fail { background-color: rgba(var(--bs-danger-rgb),  .12); color: var(--bs-danger); }
 .mp-status-dot.info { background-color: rgba(var(--bs-info-rgb),    .12); color: var(--bs-info); }
 
-/* ── Inbox wait animation (mailbox page) ────────────────────────────────── */
-/* Uses Bootstrap's own spinner-border animation — guaranteed to work.     */
+/* ── Inbox wait animation ────────────────────────────────────────────────── */
+/* Pure SVG spinner: full track ring + rotating arc, no Bootstrap required  */
 .mp-inbox-anim {
   position: relative;
-  width: 58px;
-  height: 58px;
+  width: 72px;
+  height: 72px;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
-.mp-inbox-spinner {
+.mp-spinner-svg {
   position: absolute;
   inset: 0;
-  width: 58px !important;
-  height: 58px !important;
-  border-width: 3px !important;
-  opacity: .55;
+  width: 72px;
+  height: 72px;
+  color: #0d6efd;                   /* primary — hard-coded so no cascade issues */
+  animation: mp-spin 1.3s linear infinite;
+  transform-origin: center;
 }
+@keyframes mp-spin { to { transform: rotate(360deg); } }
+
 .mp-inbox-env-icon {
   position: relative;
-  font-size: 1.4rem;
+  font-size: 1.6rem;
+  color: #0d6efd;
   z-index: 1;
+  transition: color .3s;
 }
 
-/* State: mail received → swap spinner for success icon */
-.mp-inbox-anim[data-state="received"] .mp-inbox-spinner { display: none; }
-.mp-inbox-anim[data-state="received"] .mp-inbox-env-icon { color: #ffc107 !important; }
-.mp-inbox-anim[data-state="ready"]    .mp-inbox-spinner { display: none; }
-.mp-inbox-anim[data-state="ready"]    .mp-inbox-env-icon { color: #198754 !important; }
+/* State variants */
+.mp-inbox-anim[data-state="received"] .mp-spinner-svg   { opacity: 0; animation: none; }
+.mp-inbox-anim[data-state="received"] .mp-inbox-env-icon { color: #ffc107; }
+.mp-inbox-anim[data-state="ready"]    .mp-spinner-svg   { opacity: 0; animation: none; }
+.mp-inbox-anim[data-state="ready"]    .mp-inbox-env-icon { color: #198754; }
 
 /* ── Analysis step list (home page check loop) ──────────────────────────── */
 .mp-check-steps {

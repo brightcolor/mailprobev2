@@ -68,12 +68,14 @@
           <div class="card-body py-4">
             <div class="d-flex align-items-center gap-4 flex-wrap">
 
-              <!-- Animated wait indicator — Bootstrap spinner + icon overlay -->
+              <!-- SVG ring spinner + icon -->
               <div class="mp-inbox-anim flex-shrink-0" id="mp-wait-icon">
-                <div class="mp-inbox-spinner spinner-border text-primary" role="status">
-                  <span class="visually-hidden">Warte…</span>
-                </div>
-                <i class="mp-inbox-env-icon bi bi-envelope text-primary"></i>
+                <svg class="mp-spinner-svg" viewBox="0 0 72 72" fill="none" aria-hidden="true">
+                  <circle cx="36" cy="36" r="30" stroke="currentColor" stroke-width="4.5" opacity="0.18"/>
+                  <circle cx="36" cy="36" r="30" stroke="currentColor" stroke-width="4.5"
+                          stroke-linecap="round" stroke-dasharray="120 69"/>
+                </svg>
+                <i class="mp-inbox-env-icon bi bi-envelope"></i>
               </div>
 
               <!-- Status text -->
