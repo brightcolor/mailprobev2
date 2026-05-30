@@ -116,49 +116,35 @@ body,
 .mp-status-dot.fail { background-color: rgba(var(--bs-danger-rgb),  .12); color: var(--bs-danger); }
 .mp-status-dot.info { background-color: rgba(var(--bs-info-rgb),    .12); color: var(--bs-info); }
 
-/* ── Wait icon with ripple animation (mailbox page) ─────────────────────── */
-.mp-wait-wrap {
+/* ── Inbox wait animation (mailbox page) ────────────────────────────────── */
+/* Uses Bootstrap's own spinner-border animation — guaranteed to work.     */
+.mp-inbox-anim {
+  position: relative;
+  width: 58px;
+  height: 58px;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  flex-shrink: 0;
 }
-.mp-wait-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  /* NOTE: NO box-shadow in transition — it conflicts with the animation */
-  background: rgba(13,110,253,.15);
-  color: #0d6efd;
-  font-size: 1.5rem;
-  flex-shrink: 0;
-  animation: mp-ripple 2s ease-in-out infinite;
+.mp-inbox-spinner {
+  position: absolute;
+  inset: 0;
+  width: 58px !important;
+  height: 58px !important;
+  border-width: 3px !important;
+  opacity: .55;
 }
-/* Hard-code primary colour so CSS vars can't break the keyframe */
-@keyframes mp-ripple {
-  0%   { box-shadow: 0 0 0 0   rgba(13,110,253,.6); }
-  70%  { box-shadow: 0 0 0 22px rgba(13,110,253,0); }
-  100% { box-shadow: 0 0 0 0   rgba(13,110,253,0); }
+.mp-inbox-env-icon {
+  position: relative;
+  font-size: 1.4rem;
+  z-index: 1;
 }
 
-/* State variants */
-.mp-wait-wrap[data-state="received"] .mp-wait-icon {
-  background: rgba(255,193,7,.15);
-  color: #ffc107;
-  animation: none;
-  box-shadow: none;
-}
-.mp-wait-wrap[data-state="ready"] .mp-wait-icon {
-  background: rgba(25,135,84,.15);
-  color: #198754;
-  animation: none;
-  box-shadow: none;
-}
+/* State: mail received → swap spinner for success icon */
+.mp-inbox-anim[data-state="received"] .mp-inbox-spinner { display: none; }
+.mp-inbox-anim[data-state="received"] .mp-inbox-env-icon { color: #ffc107 !important; }
+.mp-inbox-anim[data-state="ready"]    .mp-inbox-spinner { display: none; }
+.mp-inbox-anim[data-state="ready"]    .mp-inbox-env-icon { color: #198754 !important; }
 
 /* Legacy dot (kept so old markup doesn't break) */
 .status-dot {

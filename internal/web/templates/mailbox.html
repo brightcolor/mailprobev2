@@ -60,37 +60,49 @@
     <div class="app-content">
       <div class="container-fluid">
 
-        <!-- Live status callout -->
-        <div class="callout callout-info mb-3"
+        <!-- Live status card -->
+        <div class="card mb-3"
              id="status-card"
              data-token="{{.Mailbox.Token}}"
              data-latest-message-id="{{if .Messages}}{{(index .Messages 0).Message.ID}}{{else}}0{{end}}">
-          <div class="d-flex align-items-start align-items-sm-center gap-3 flex-wrap">
-            <div class="mp-wait-wrap" id="mp-wait-icon" aria-hidden="true">
-              <span class="mp-wait-icon"><i class="bi bi-envelope"></i></span>
-            </div>
-            <div class="flex-grow-1">
-              <p id="status-text" class="mb-0 fw-semibold">Warte auf eingehende E-Mail &hellip;</p>
-              <small class="text-secondary">
-                Sende deine Testmail an
-                <code id="mail-address" class="mp-addr-inline" onclick="copyAddress()"
-                      title="Klicken zum Kopieren" role="button" tabindex="0"
-                      onkeydown="if(event.key==='Enter'||event.key===' ')copyAddress()">{{.Mailbox.Address}}</code>
-                &middot; Live-Status &middot; aktualisiert automatisch
-              </small>
-            </div>
-            <dl class="mp-live-meta mb-0">
-              <div>
-                <dt>Ablauf</dt>
-                <dd data-time="{{.Mailbox.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">
-                  {{.Mailbox.ExpiresAt.Format "02.01.2006, 15:04 MST"}}
-                </dd>
+          <div class="card-body py-4">
+            <div class="d-flex align-items-center gap-4 flex-wrap">
+
+              <!-- Animated wait indicator — Bootstrap spinner + icon overlay -->
+              <div class="mp-inbox-anim flex-shrink-0" id="mp-wait-icon">
+                <div class="mp-inbox-spinner spinner-border text-primary" role="status">
+                  <span class="visually-hidden">Warte…</span>
+                </div>
+                <i class="mp-inbox-env-icon bi bi-envelope text-primary"></i>
               </div>
-              <div>
-                <dt>Direktlink</dt>
-                <dd><a href="{{.PublicURL}}/mailbox/{{.Mailbox.Token}}">Link kopieren</a></dd>
+
+              <!-- Status text -->
+              <div class="flex-grow-1">
+                <p id="status-text" class="mb-1 fw-semibold fs-6">Warte auf eingehende E-Mail &hellip;</p>
+                <p class="mb-0 text-secondary small">
+                  Sende deine Testmail an
+                  <code id="mail-address" class="mp-addr-inline" onclick="copyAddress()"
+                        title="Klicken zum Kopieren" role="button" tabindex="0"
+                        onkeydown="if(event.key==='Enter'||event.key===' ')copyAddress()">{{.Mailbox.Address}}</code>
+                  &middot; aktualisiert automatisch
+                </p>
               </div>
-            </dl>
+
+              <!-- Meta -->
+              <dl class="mp-live-meta mb-0 flex-shrink-0">
+                <div>
+                  <dt>Gültig bis</dt>
+                  <dd data-time="{{.Mailbox.ExpiresAt.Format "2006-01-02T15:04:05Z07:00"}}">
+                    {{.Mailbox.ExpiresAt.Format "02.01.2006, 15:04 MST"}}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Direktlink</dt>
+                  <dd><a href="{{.PublicURL}}/mailbox/{{.Mailbox.Token}}">Link kopieren</a></dd>
+                </div>
+              </dl>
+
+            </div>
           </div>
         </div>
 
