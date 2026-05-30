@@ -104,6 +104,17 @@ func (s *Store) TouchMailbox(ctx context.Context, id int64) error {
 	return err
 }
 
+func (s *Store) ExtendMailbox(ctx context.Context, token string, newExpiresAt time.Time) (model.Mailbox, error) {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE mailboxes SET expires_at = ? WHERE token = ?`,
+		newExpiresAt.UTC(), token,
+	)
+	if err != nil {
+		return model.Mailbox{}, err
+	}
+	return s.GetMailboxByToken(ctx, token)
+}
+
 func (s *Store) SaveMessage(ctx context.Context, m model.Message) (model.Message, error) {
 	if m.ReceivedAt.IsZero() {
 		m.ReceivedAt = time.Now().UTC()

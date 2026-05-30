@@ -68,11 +68,12 @@ type PrivacyData struct {
 }
 
 type MailboxData struct {
-	AppName   string
-	Mailbox   model.Mailbox
-	Messages  []model.MessageWithReport
-	Now       time.Time
-	PublicURL string
+	AppName         string
+	Mailbox         model.Mailbox
+	Messages        []model.MessageWithReport
+	Now             time.Time
+	PublicURL       string
+	MaxExtendDays   int
 }
 
 type ReportData struct {
@@ -433,11 +434,12 @@ func (s *Server) mailboxPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.render(w, "mailbox", MailboxData{
-		AppName:   s.cfg.AppName,
-		Mailbox:   mb,
-		Messages:  msgs,
-		Now:       time.Now().UTC(),
-		PublicURL: s.publicBaseURL(r),
+		AppName:       s.cfg.AppName,
+		Mailbox:       mb,
+		Messages:      msgs,
+		Now:           time.Now().UTC(),
+		PublicURL:     s.publicBaseURL(r),
+		MaxExtendDays: s.cfg.MailboxMaxExtendDays,
 	})
 }
 
@@ -662,6 +664,52 @@ func (s *Server) mailboxAPI(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		jsonResp(w, http.StatusOK, map[string]string{"status": "deleted"})
+
+	case action == "extend" && r.Method == http.MethodPost:
+		mb, err := s.store.GetMailboxByToken(ctx, token)
+		if err != nil {
+			jsonResp(w, http.StatusNotFound, map[string]string{"error": "mailbox not found"})
+			return
+		}
+		var body struct {
+			ExpiresAt time.Time `json:"expires_at"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.ExpiresAt.IsZero() {
+			jsonResp(w, http.StatusBadRequest, map[string]string{"error": "invalid expires_at"})
+			return
+		}
+		now := time.Now().UTC()
+		maxExtend := now.Add(time.Duration(s.cfg.MailboxMaxExtendDays) * 24 * time.Hour)
+		if body.ExpiresAt.Before(now) {
+			jsonResp(w, http.StatusBadRequest, map[string]string{"error": "expires_at must be in the future"})
+			return
+		}
+		if body.ExpiresAt.After(maxExtend) {
+			jsonResp(w, http.StatusBadRequest, map[string]string{
+				"error": fmt.Sprintf("maximum extension is %d days from now", s.cfg.MailboxMaxExtendDays),
+			})
+			return
+		}
+		// Only allow extension after half the original lifetime has elapsed
+		lifetime := mb.ExpiresAt.Sub(mb.CreatedAt)
+		halfPoint := mb.CreatedAt.Add(lifetime / 2)
+		if now.Before(halfPoint) {
+			jsonResp(w, http.StatusForbidden, map[string]string{
+				"error":      "too early to extend",
+				"earliest":   halfPoint.UTC().Format(time.RFC3339),
+			})
+			return
+		}
+		updated, err := s.store.ExtendMailbox(ctx, token, body.ExpiresAt)
+		if err != nil {
+			jsonResp(w, http.StatusInternalServerError, map[string]string{"error": "db error"})
+			return
+		}
+		jsonResp(w, http.StatusOK, map[string]any{
+			"status":     "extended",
+			"expires_at": updated.ExpiresAt,
+		})
+
 	default:
 		http.NotFound(w, r)
 	}
