@@ -128,7 +128,27 @@ async function createMailboxWithCrypto() {
   if (!res.ok) throw new Error('mailbox create failed');
   const data = await res.json();
   storeSecret(identifier, token);
+  // Append secret token to mailbox_url as a URL fragment so the link is shareable.
+  // The fragment is never sent to the server — the key stays client-side.
+  if (data.mailbox_url) data.mailbox_url = data.mailbox_url + '#' + token;
+  data._secret_token = token;
   return data;
+}
+
+// ── URL-Fragment: read token from #hash on mailbox/report pages ───────────────
+// When a user opens a shared link like /mailbox/{id}#secretToken, this function
+// reads the fragment, derives the identifier, and stores the secret in localStorage
+// so subsequent decryption works — even for fresh browser sessions.
+async function readAndStoreTokenFromFragment() {
+  const hash = (location.hash || '').slice(1); // strip leading #
+  if (!hash || !window.SenderReportCrypto) return;
+  try {
+    const { identifier } = await window.SenderReportCrypto.fromToken(hash);
+    storeSecret(identifier, hash);
+    // Keep the fragment in the URL so copying/sharing still works.
+  } catch (_) {
+    // Not a valid token — ignore (could be a regular anchor link).
+  }
 }
 
 async function createMailbox() {
@@ -1065,14 +1085,13 @@ async function initHomeMailbox() {
           if (!res.ok) continue;
           const status = await res.json();
           if (status.expired) continue;
-          // Mailbox is alive — restore identity.
-          const info = await crypto.fromToken(secret);
+          // Mailbox is alive — restore identity including shareable fragment URL.
           const addr = identifier + '@' + (panel.dataset.domain || location.hostname);
           updateMailboxIdentity({
             token: identifier,
             address: status.address || addr,
             expires_at: status.expires_at,
-            mailbox_url: `/mailbox/${identifier}`,
+            mailbox_url: `/mailbox/${identifier}#${secret}`,
             status_path: `/api/mailboxes/${identifier}/status`,
             events_path: `/api/mailboxes/${identifier}/events`,
             encrypted: true,

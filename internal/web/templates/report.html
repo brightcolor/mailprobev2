@@ -816,6 +816,10 @@ Kind regards,
 <script src="/static/app.js"></script>
 {{if .Encrypted}}
 <script>
+// Read shared token from URL fragment (#token) on page load.
+// This allows shareable links: /report/{id}#{token}
+readAndStoreTokenFromFragment();
+
 (async function() {
   const meta    = document.querySelector('meta[name="mp-encrypted"]');
   const token   = meta?.dataset.token;

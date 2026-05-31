@@ -259,7 +259,14 @@
 <script src="/static/vendor/bootstrap.min.js"></script>
 <script src="/static/vendor/overlayscrollbars.es5.min.js"></script>
 <script src="/static/vendor/adminlte.min.js"></script>
+{{if .Mailbox.PublicKey}}
+<script src="/static/vendor/tweetnacl.min.js"></script>
+<script src="/static/crypto.js"></script>
+{{end}}
 <script src="/static/app.js"></script>
+{{if .Mailbox.PublicKey}}
+<script>readAndStoreTokenFromFragment();</script>
+{{end}}
 </body>
 </html>
 {{end}}
