@@ -472,37 +472,67 @@ func enrichCheckResult(c model.CheckResult, ctx checkContext) model.CheckResult 
 		c.TechnicalDetails["remote_ip"] = emptyFallback(ctx.Message.RemoteIP, "unknown")
 		c.TechnicalDetails["helo_ehlo"] = emptyFallback(ctx.Message.HELO, "unknown")
 		c.TechnicalDetails["expected"] = fmt.Sprintf("IP %s -> PTR %s -> A/AAAA %s", emptyFallback(ctx.Message.RemoteIP, "unknown"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.RemoteIP, "sender-ip"))
-		c.Explanation = "Reverse DNS zeigt, welcher Hostname zu einer sendenden IP gehoert. Empfaenger erwarten, dass PTR/rDNS, HELO/EHLO und A/AAAA-Aufloesung plausibel zusammenpassen. Ohne gueltigen PTR oder bei unpassendem Hostnamen stufen insbesondere Outlook, grosse Unternehmensgateways und viele Anti-Spam-Appliances die Verbindung deutlich negativer ein."
-		c.Recommendation = fmt.Sprintf("Beim Server- oder IP-Provider den PTR der IP %s auf den tatsaechlichen Mailserver-Hostnamen setzen. Zielzustand: PTR/rDNS `%s`, HELO/EHLO `%s`, und ein A/AAAA-Record fuer `%s`, der wieder auf %s zeigt. Bei Postfix entspricht das typischerweise `myhostname = %s`; bei Exim `primary_hostname = %s`.", emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.HELO, "mail.example.tld"))
+		c.Explanation = "Reverse DNS (PTR/rDNS) zeigt, welcher Hostname zu einer sendenden IP gehoert. Empfaenger pruefen typischerweise: (1) Hat die IP einen gueltigen PTR-Eintrag? (2) Loest dieser PTR-Name per Forward-DNS wieder auf die gleiche IP auf (Forward-Confirmed rDNS)? (3) Stimmt der PTR-Name plausibel mit HELO/EHLO ueberein? Outlook/Exchange, Barracuda, Mimecast und Unternehmens-Gateways lehnen bei fehlendem PTR direkt ab. Gmail und Yahoo nutzen es als Qualitaetssignal. Hosting-Provider setzen PTR-Records typischerweise ueber ihr Control-Panel oder per Support-Ticket."
+		c.Recommendation = fmt.Sprintf("PTR-Record fuer IP %s setzen (beim IP-/Hosting-Provider, nicht im eigenen DNS).\n\nZielzustand:\n  %s -> PTR -> %s\n  %s -> A   -> %s\n\nPostfix: myhostname = %s\nExim:    primary_hostname = %s\n\nBei Hetzner: Server > Networking > Reverse DNS\nBei DigitalOcean: Networking > Floating IP > Edit PTR\nPruefen: dig -x %s +short", emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"), emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"))
+		c.DocLinks = []model.DocLink{
+			{Title: "PTR/rDNS Lookup – MXToolbox", URL: "https://mxtoolbox.com/ReverseLookup.aspx"},
+			{Title: "Forward-confirmed rDNS – Wikipedia", URL: "https://en.wikipedia.org/wiki/Forward-confirmed_reverse_DNS"},
+			{Title: "Outlook Sender Requirements", URL: "https://sendersupport.olc.protection.outlook.com/pm/policies.aspx"},
+		}
 	case "helo":
 		c.TechnicalDetails["helo_ehlo"] = emptyFallback(ctx.Message.HELO, "unknown")
 		c.TechnicalDetails["remote_ip"] = emptyFallback(ctx.Message.RemoteIP, "unknown")
-		c.Explanation = "HELO/EHLO ist der Name, mit dem sich der sendende Mailserver beim Empfaenger meldet. Er sollte ein stabiler vollqualifizierter Hostname sein, nicht `localhost`, keine IP-Literal-Adresse und kein zufaelliger Containername. Provider vergleichen dieses Signal oft mit PTR/rDNS und Forward-DNS."
-		c.Recommendation = fmt.Sprintf("Im Mailserver den SMTP-Hostname auf einen FQDN setzen, z. B. Postfix `myhostname = %s` oder Exim `primary_hostname = %s`. Der gleiche Name sollte im PTR/rDNS der IP stehen und per A/AAAA auf die sendende IP %s zeigen.", emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"))
+		c.Explanation = "HELO/EHLO ist der Hostname, mit dem sich der sendende MTA beim Empfaenger-SMTP anmeldet. Er sollte ein stabiler, vollqualifizierter Domainname (FQDN) sein. Kein 'localhost', keine rohe IP-Adresse ([203.0.113.1]) und kein zufaelliger Container-Name. Empfangende Systeme pruefen: Ist der HELO-Name ein gueltiger FQDN? Stimmt er mit dem PTR/rDNS der sendenden IP ueberein? Hat er einen A/AAAA-Record? SpamAssassin wertet HELO_DYNAMIC, HELO_NO_DOMAIN, HELO_IP_4_5_6 mit negativen Scores; viele kommerzielle Gateways lehnen bei inkonsistentem HELO/PTR ab."
+		c.Recommendation = fmt.Sprintf("HELO/EHLO-Hostname auf stabilen FQDN setzen, der zu IP %s und PTR passt.\n\nPostfix (/etc/postfix/main.cf):\n  myhostname = %s\n\nExim (/etc/exim4/exim4.conf):\n  primary_hostname = %s\n\nSendmail:\n  Djmailhost.example.org (in sendmail.mc)\n\nPruefen: telnet %s 25 -> EHLO senden -> Antwort vergleichen", emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.HELO, "mail.example.tld"), emptyFallback(ctx.Message.RemoteIP, "<sender-ip>"))
+		c.DocLinks = []model.DocLink{
+			{Title: "RFC 5321 – SMTP EHLO", URL: "https://www.rfc-editor.org/rfc/rfc5321#section-4.1.1.1"},
+			{Title: "SpamAssassin HELO-Tests", URL: "https://spamassassin.apache.org/tests_3_4_x.html"},
+		}
 	case "mx_records":
-		c.Explanation = "MX-Records definieren, welcher Mailserver E-Mails fuer eine Domain annimmt. Fuer reine Versanddomains ist ein MX nicht immer zwingend, aber viele Filter bewerten Domains ohne empfangbaren Rueckkanal weniger plausibel. Fuer Reply-To, Abuse-Kontakt, Bounce-Handling und DMARC-Reports ist Empfangbarkeit praktisch hilfreich."
+		c.Explanation = "MX-Records definieren, welcher Mailserver E-Mails fuer eine Domain empfaengt. Fuer reine Versanddomains ist ein MX technisch nicht zwingend, aber Domains ohne MX werden von vielen Spamfiltern misstrauischer eingestuft – weil wegwerf-artige oder kompromittierte Domains oft keinen MX haben. Ausserdem setzen Bounce-Handling, DMARC-Forensik-Reports (ruf=) und Reply-To-Routing Empfangbarkeit voraus."
 		if c.Recommendation == "" {
-			c.Recommendation = fmt.Sprintf("Falls `%s` E-Mails empfangen soll, in der DNS-Zone einen gueltigen MX-Record setzen, z. B. `%s. MX 10 mail.%s.`. Der MX-Hostname `mail.%s` braucht anschliessend einen passenden A/AAAA-Record.", emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain), emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain), emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain), emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain))
+			c.Recommendation = fmt.Sprintf("MX-Record fuer %s setzen:\n\n  Name: %s\n  Typ:  MX 10\n  Wert: mail.%s\n\nDann A/AAAA fuer mail.%s setzen.\nRedundanz: zweiten MX mit Prioritaet 20 empfohlen.\nPruefen: dig MX %s +short", emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain), emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain), emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain), emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain), emptyFallback(ctx.FromDomain, ctx.EnvelopeDomain))
+		}
+		c.DocLinks = []model.DocLink{
+			{Title: "MX-Record prüfen – MXToolbox", URL: "https://mxtoolbox.com/MXLookup.aspx"},
+			{Title: "RFC 5321 – MX-Record Semantik", URL: "https://www.rfc-editor.org/rfc/rfc5321#section-5"},
 		}
 	case "address_records":
-		c.Explanation = "A/AAAA-Records zeigen, auf welche IPs eine Domain oder ein Hostname zeigt. Mailserver-Hostnamen aus HELO/EHLO, MX-Zielen und Tracking-/Bounce-Subdomains sollten sauber aufloesen. Fehlende Forward-DNS-Aufloesung wirkt wie eine unfertige oder falsch delegierte Infrastruktur."
+		c.Explanation = "A/AAAA-Records zeigen, auf welche IPs ein Hostname zeigt. Mailserver-Hostnamen aus HELO/EHLO und MX-Eintraegen muessen sauber aufloesen. Ein HELO-Name ohne gueltigen A/AAAA-Record erhoehen Spam-Scores und signalisieren schlechte DNS-Hygiene. Tracking-Subdomains und Bounce-Domains sollten ebenfalls konsistent aufloesen."
 		if c.Recommendation == "" {
-			c.Recommendation = fmt.Sprintf("DNS-Zone pruefen und fuer den verwendeten Hostnamen einen passenden A-Record setzen. Beispiel: `%s. A %s`. Bei IPv6 zusaetzlich AAAA setzen und PTR/rDNS fuer IPv6 ebenfalls konsistent halten.", emptyFallback(ctx.Message.HELO, "mail.example.org"), emptyFallback(ctx.Message.RemoteIP, "203.0.113.10"))
+			c.Recommendation = fmt.Sprintf("A-Record setzen:\n\n  Name: %s\n  Typ:  A\n  Wert: %s\n\nBei IPv6: zusaetzlich AAAA und PTR fuer IPv6.\nPruefen: dig A %s +short", emptyFallback(ctx.Message.HELO, "mail.example.org"), emptyFallback(ctx.Message.RemoteIP, "203.0.113.10"), emptyFallback(ctx.Message.HELO, "mail.example.org"))
+		}
+		c.DocLinks = []model.DocLink{
+			{Title: "DNS A-Record erklärt – Cloudflare", URL: "https://www.cloudflare.com/learning/dns/dns-records/dns-a-record/"},
+			{Title: "DNS-Diagnose – MXToolbox", URL: "https://mxtoolbox.com/DNSLookup.aspx"},
 		}
 	case "spamassassin":
-		c.Explanation = "SpamAssassin bewertet viele klassische Inhalts-, Header- und Reputationssignale. Es ist kein globaler Standard fuer Gmail oder Outlook, aber ein sehr nuetzlicher Indikator fuer typische Spam-Muster, kaputte MIME-Strukturen, fehlende Authentifizierung und auffaellige URLs."
+		c.Explanation = "SpamAssassin bewertet Nachrichten mit einem gewichteten Regelsystem aus mehreren hundert Tests: Authentifizierung, IP-Reputation, Header-Konsistenz, Inhaltsmuster, MIME-Struktur, URLs und Bayes-Filter. Ab einem Schwellwert (typisch 5.0) gilt eine Mail als Spam. SpamAssassin ist bei ISPs, Unternehmens-Gateways, Postfix/Dovecot-Setups und cPanel-Hosting weit verbreitet. Hohe SA-Scores sind ein starker Indikator fuer reale Zustellprobleme."
 		if c.Recommendation == "" {
-			c.Recommendation = "Die ausgegebenen SpamAssassin-Regeln priorisieren: zuerst Authentifizierung (SPF/DKIM/DMARC), dann IP-/RBL-Signale, danach Betreff, Links und HTML-Struktur. Bei jeder Regel den konkreten Symbolnamen im SpamAssassin-Regelwerk nachschlagen und nur die Ursache beheben, nicht blind Text verschleiern."
+			c.Recommendation = "SA-Regeln nach Gewicht priorisieren – nicht Text verschleiern:\n\n1. Authentifizierung: SPF/DKIM/DMARC ohne pass verschlechtern SA-Score signifikant\n2. IP-Reputation: RBL-Listings (RCVD_IN_*) sofort beheben\n3. Header: Date, Message-ID, From, Return-Path korrekt setzen\n4. Inhalt: Trigger-Woerter, ALL CAPS, excessive Ausrufezeichen\n5. Links: URL-Shortener, fremde Redirect-Ketten\n\nJede Regel nachschlagen: https://spamassassin.apache.org/tests_3_4_x.html"
+		}
+		c.DocLinks = []model.DocLink{
+			{Title: "SpamAssassin Regelwerk", URL: "https://spamassassin.apache.org/tests_3_4_x.html"},
+			{Title: "SA Score-Konfiguration", URL: "https://wiki.apache.org/spamassassin/WritingRules"},
 		}
 	case "rbl":
-		c.Explanation = "RBLs/DNSBLs listen IPs, die Spam, Abuse, Botnet-, Proxy- oder Angriffssignale ausgelöst haben. Grosse Mailboxprovider nutzen zwar eigene Reputationssysteme, aber ein Listing auf etablierten Listen ist fast immer ein Hinweis auf ein reales Infrastrukturproblem oder eine kompromittierte Quelle. Die richtige Reihenfolge ist immer: Ursache stoppen, Logs pruefen, Reputation stabilisieren, dann Delisting beantragen."
+		c.Explanation = "RBLs/DNSBLs listen IPs, die Spam-, Abuse-, Botnet-, Proxy- oder Angriffssignale ausgeloest haben. Die bekanntesten Listen (Spamhaus SBL/XBL/PBL, Barracuda, SpamCop) werden von grossen Mailbox-Providern, kommerziellen Gateways und selbst betriebenen Mailservern aktiv genutzt. Ein Listing bedeutet nicht zwingend sofortige Ablehnung, erhoeh aber den Spam-Score erheblich und fuehrt bei strengen Providern zu direkter Ablehnung (550 5.7.1). Richtige Reihenfolge: Ursache stoppen -> Infrastruktur sichern -> Reputation stabilisieren -> Delisting beantragen."
 		if c.Recommendation == "" {
 			c.Recommendation = rblGenericRecommendation(ctx.Message.RemoteIP)
+		}
+		c.DocLinks = []model.DocLink{
+			{Title: "Spamhaus Check & Delist", URL: "https://check.spamhaus.org/"},
+			{Title: "MXToolbox Blacklist Check", URL: "https://mxtoolbox.com/blacklists.aspx"},
+			{Title: "MultiRBL – mehrere Listen prüfen", URL: "https://multirbl.valli.org/"},
+			{Title: "Barracuda Reputation Lookup", URL: "https://www.barracudacentral.org/lookups"},
 		}
 	default:
 		c.Explanation = defaultExplanation(c.ID)
 		if c.Recommendation == "" {
 			c.Recommendation = defaultRecommendation(c, ctx)
+		}
+		if len(c.DocLinks) == 0 {
+			c.DocLinks = defaultDocLinks(c.ID)
 		}
 	}
 	if c.Recommendation == "" {
@@ -622,38 +652,66 @@ func checkSeverity(status string) string {
 
 func defaultExplanation(id string) string {
 	switch id {
-	case "from_alignment", "spf_alignment", "dkim_alignment", "dmarc_alignment":
-		return "Alignment prueft, ob technische Authentifizierung und sichtbare From-Domain zusammenpassen. Gmail, Outlook, Yahoo und Apple Mail gewichten das stark, weil damit Spoofing und Phishing erkannt werden."
+	case "from_alignment":
+		return "From-Alignment prueft, ob Envelope-From (SMTP MAIL FROM) und Header-From (sichtbare Absenderadresse) zur gleichen Domain gehoeren. Abweichungen sind technisch moeglich (z. B. ESP-Bounce-Adressen), koennen aber DMARC-Alignment gefaehrden und Spamfiltern Muster fuer Spoofing-Versuche liefern. Viele Nutzer pruefe die sichtbare From-Adresse – Mismatch kann Vertrauen kosten."
+	case "spf_alignment":
+		return "SPF-Alignment prueft, ob die Envelope-From-Domain (MAIL FROM) und die sichtbare Header-From-Domain zusammenpassen. Fuer DMARC muss SPF-Alignment stimmen – andernfalls kann SPF zwar bestehen, aber DMARC trotzdem scheitern. ESPs nutzen oft eigene Bounce-Domains; diese muessen als Subdomain der From-Domain konfiguriert sein oder DKIM muss DMARC tragen."
+	case "dkim_alignment":
+		return "DKIM-Alignment prueft, ob die Domain im d=-Tag der DKIM-Signatur zur sichtbaren Header-From-Domain passt. Nur aligned bestandenes DKIM zaehlt fuer DMARC. Signing-Keys von ESPs (Mailchimp, Sendgrid etc.) muessen auf der eigenen Domain oder einer authorisierten Subdomain konfiguriert sein, nicht auf der ESP-Domain."
+	case "dmarc_alignment":
+		return "DMARC-Alignment ist der Gesamtcheck: Besteht SPF oder DKIM, UND ist die jeweilige Domain zur sichtbaren From-Domain aligned? Nur wenn mindestens einer dieser beiden Pfade stimmt, zaehlt DMARC als bestanden. Gmail, Yahoo, Apple Mail und Outlook setzen fuer Bulk-Sender DMARC-Alignment voraus; ohne aligned Pass scheitert DMARC-Enforcement."
 	case "return_path":
-		return "Return-Path ist die Bounce-Adresse, die der empfangende Server aus dem SMTP Envelope ableitet. Sie sollte technisch zur Versanddomain passen und fuer SPF/DMARC nachvollziehbar sein."
-	case "mime_ct", "mime_boundary", "multipart_alt":
-		return "MIME beschreibt den Aufbau der Nachricht. Fehlerhafte MIME-Strukturen fuehren dazu, dass Clients Inhalte falsch darstellen oder Spamfilter die Mail abwerten."
-	case "plain_text":
-		return "Ein Plaintext-Part verbessert Kompatibilitaet und wirkt fuer Spamfilter natuerlicher als reine HTML-Mails."
-	case "attachments":
-		return "Anhaenge erhoehen Risiko und Groesse der Mail. Einige Provider pruefen Dateityp, Signaturen und Reputation besonders streng."
-	case "image_text_ratio":
-		return "Mails mit vielen Bildern und wenig Text wirken oft wie Werbe- oder Phishing-Mails und werden haeufig schlechter bewertet."
-	case "links", "shortener", "tracking_links":
-		return "Links werden von Mailprovidern intensiv geprueft. Kurzlinks, Weiterleitungen und aggressive Tracking-Parameter koennen Vertrauen reduzieren."
-	case "html", "hidden_html", "html_validity":
-		return "HTML wird von Mailclients restriktiv gerendert und von Spamfiltern auf versteckte Inhalte, Phishing-Muster und kaputte Struktur geprueft."
-	case "subject", "subject_exclaim", "subject_caps":
-		return "Der Betreff ist ein starkes Nutzer- und Spamfilter-Signal. Reisserische Zeichen, reine Grossschreibung oder fehlender Kontext verschlechtern die Einstufung."
-	case "message_id":
-		return "Eine stabile Message-ID ist ein RFC-Basismerkmal und hilft bei Threading, Duplikaterkennung und Reputation."
-	case "date", "date_skew":
-		return "Der Date-Header sollte plausibel zur Versandzeit passen. Starke Abweichungen wirken wie fehlerhafte Serverzeit oder manipulierte Nachrichten."
-	case "tls_transport":
-		return "TLS schuetzt den Transport zwischen Mailservern. Viele Provider erwarten heute STARTTLS-Unterstuetzung."
+		return "Return-Path enthaelt die Bounce-Adresse (Envelope-From / SMTP MAIL FROM). Hierhin gehen Delivery Status Notifications (DSN/NDR) bei Zustellfehlern. Return-Path sollte zur SPF-Domain passen und mit dem SMTP-Envelope-From konsistent sein. Viele Spamfilter pruefen Return-Path auf Domain-Alignment, fehlende MX-Records und Blacklist-Status."
 	case "reply_to":
-		return "Reply-To steuert, wohin Antworten gehen. Abweichungen zur From-Adresse koennen legitim sein, sollten aber bewusst gesetzt sein."
-	case "list_unsub", "preheader":
-		return "Newsletter-Provider und grosse Mailboxanbieter erwarten klare Abmelde- und Vorschau-Signale. Gmail und Yahoo bewerten List-Unsubscribe fuer Bulk-Mail besonders stark."
-	case "unicode":
-		return "Unicode ist normal fuer viele Sprachen, aber Zero-Width-Zeichen oder obfuskierte Zeichenmischungen werden haeufig fuer Spam und Phishing genutzt."
+		return "Reply-To steuert, wohin Antworten gehen, wenn Nutzer auf 'Antworten' klicken. Eine Abweichung zur From-Adresse kann legitim sein (Support-Alias, Teampostfach), ist aber auch ein bekanntes Phishing-Signal. Einige Spam-Filter bewerten Reply-To-Domain gegen From-Domain und melden bei starker Abweichung (z. B. andere TLD oder kostenloser Webmailer) einen Verdacht."
+	case "mime_ct":
+		return "Content-Type beschreibt den Medientyp der Nachricht. Ein fehlerhafter oder fehlender Content-Type verhindert korrektes Rendering in Mailclients und fuehrt zu erhoehten Spam-Scores bei SA und Rspamd. RFC 2045 schreibt vor, dass jede MIME-Nachricht einen gueltigen Content-Type-Header enthalten muss."
+	case "mime_boundary":
+		return "Multipart-Nachrichten benoetigen eine eindeutige Boundary-Zeichenkette, die alle Teile trennt. Eine fehlende oder kollidierende Boundary macht die Nachricht unparsbar. SpamAssassin, Rspamd und viele Gateway-Scanner werten kaputte MIME-Strukturen stark negativ."
+	case "multipart_alt":
+		return "Multipart/alternative ist das empfohlene Format fuer HTML-Mails: ein text/plain-Part und ein text/html-Part. Der Empfaenger-Client waehlt den am besten geeigneten Part. Fehlt der text/plain-Part, koennen Mails in Text-only-Clients unlezbar werden, und Spamfilter sehen reines HTML als Spam-Signal."
+	case "plain_text":
+		return "Ein text/plain-Part erhoeh Kompatibilitaet mit Text-Clients, Screen-Readern und Archivierungssystemen erheblich. Reine HTML-Mails ohne Plaintext-Aequivalent erzielen bei SpamAssassin (MIME_HTML_ONLY) und Rspamd negative Scores. Gmail und Outlook rendern Plaintext-Parts separat und nutzen sie fuer Suche und Preheader-Erkennung."
+	case "attachments":
+		return "Anhaenge erhoehen Groesse, Risiko und Scanaufwand. Ausfuehrbare Dateitypen (exe, js, vbs, bat) werden von den meisten Providern blockiert. Archive (zip, rar) werden auf Malware gescannt. Grosse Anhaenge reduzieren Zustellwahrscheinlichkeit und erhoehen Bounce-Risiko durch Quotas. Office-Dateien mit Makros werden oft gesondert gefiltert."
+	case "image_text_ratio":
+		return "Mails mit vielen Bildern und wenig Text sind ein klassisches Spam-Signal, weil Spammer fruehzeitig lernten, Text in Bilder zu verlagern, um Textfilter zu umgehen. SpamAssassin (HTML_IMAGE_RATIO_*) und Rspamd bewerten ein unguenstiges Bild/Text-Verhaeltnis negativ. Empfehlung: zentrale Aussage immer auch als Text, Bilder mit Alt-Text, kein Bild-only-Layout."
+	case "links":
+		return "Links werden von Mailprovidern und Gateways intensiv geprueft: Domain-Reputation, Blacklist-Status, Redirect-Ketten, Homoglyph-Domains und Phishing-Muster. Viele Domains in einer Mail, Mismatch zwischen angezeigtem und tatsaechlichem Linkziel oder Links auf verdaechtige TLDs erhoehen Spam-Scores erheblich."
+	case "shortener":
+		return "URL-Shortener (bit.ly, t.co, tinyurl etc.) verbergen das tatsaechliche Ziel und koennen nicht geprueft werden. Spamfilter, Security-Gateways und Virenscanner lehnen Shortener-Links oft pauschal ab oder erhoehen den Spam-Score stark. Eigene Tracking-Domains sind die professionelle Alternative."
+	case "tracking_links":
+		return "Tracking-Links mit fremden Redirect-Domains (ESP-Domains wie click.mailchimp.com, r.sendgrid.net) oder aggressiven UTM-Parametern werden von Spamfiltern und Security-Gateways geprueft. Die Tracking-Domain sollte sauber sein (nicht gelistet), HTTPS verwenden und zum Absender passen. Eigene Tracking-Subdomains signalisieren professionellen Betrieb."
+	case "html":
+		return "HTML-Inhalt wird von Mailclients restriktiv gerendert (kein JavaScript, eingeschraenktes CSS) und von Spamfiltern auf Phishing-Muster, versteckte Texte, kaputte Struktur und verdaechtige Tags geprueft. Komplexes HTML, inline Styles in übermässigen Mengen und defekte Tags erhoehen Spam-Scores."
+	case "hidden_html":
+		return "Versteckte HTML-Elemente (display:none, font-size:0, color:white auf weissem Hintergrund, overflow:hidden mit height:0) sind eine bekannte Spam-Taktik und werden von SpamAssassin, Rspamd und Gmail explizit geprueft. Legitime Nutzung (Preheader-Text) sollte massvoll und nicht uebertrieben sein."
+	case "html_validity":
+		return "Valides HTML verbessert Rendering-Konsistenz ueber alle Mailclients und wird von Spamfiltern als Qualitaetssignal gewertet. Kaputte Tags, unkorrekt geschachtelte Elemente und fehlende Pflicht-Attribute koennen zu inkonsistenter Darstellung und erhoehten Spam-Scores fuehren."
+	case "subject":
+		return "Der Betreff ist eines der staerksten Nutzer- und Filterbewertungs-Signale. Ein leerer oder generischer Betreff, fehlender Bezug zum Absender oder betruegarische Muster (Re:, Fwd: ohne Context) werden von Spamfiltern und Nutzern negativ bewertet. Der Betreff sollte den Inhalt klar und korrekt beschreiben."
+	case "subject_exclaim":
+		return "Mehrfache Ausrufezeichen und andere Sonderzeichen-Haeufungen im Betreff sind klassische Spam-Signale. SpamAssassin prueft SUBJECT_ENDS_IN_EXCLAIM, SUBJ_MULT_EXCLAIM und aehnliche Muster explizit. Professionelle Transaktionsmails nutzen maximal ein Ausrufezeichen, wenn ueberhaupt."
+	case "subject_caps":
+		return "Durchgehende Grossschreibung (ALL CAPS) im Betreff ist ein sehr starkes Spam-Signal und wird von SpamAssassin (SUBJ_ALL_CAPS), Rspamd und manuellen Nutzern sofort als aufdringlich wahrgenommen. Grossbuchstaben nur dort nutzen, wo grammatikalisch korrekt."
+	case "message_id":
+		return "Message-ID ist ein RFC-Pflichtfeld (RFC 5322) und identifiziert jede Nachricht eindeutig. Sie wird fuer E-Mail-Threading (In-Reply-To, References), Duplikaterkennung und Reputationsverfolgung genutzt. Fehlende oder generische Message-IDs (z. B. mit lokalem Hostnamen wie localhost) erhoehen Spam-Scores und stoeren Client-Threading."
+	case "date":
+		return "Der Date-Header muss ein gueltiges RFC 2822-Datum enthalten, das plausibel zur tatsaechlichen Versandzeit passt. Falsches Datum signalisiert falsch gestellte Serverzeit, manipulierte Nachrichten oder Software-Fehler. Manche Spamfilter lehnen Mails ab, die weit in der Zukunft oder Vergangenheit datiert sind."
+	case "date_skew":
+		return "Starke Zeitabweichung zwischen Date-Header und tatsaechlichem Empfangszeitpunkt ist ein Spam-Signal. Erlaubt sind typischerweise +/-24h fuer Zeitzonendifferenzen und Netzwerkverzoegerungen. Bei groesserer Abweichung pruefen, ob die Serverzeit per NTP korrekt synchronisiert ist und ob der MTA keinen manuell manipulierten Date-Header erzeugt."
+	case "tls_transport":
+		return "TLS (STARTTLS oder SMTPS) schuetzt den SMTP-Transport vor Abhoeren und Manipulation. Viele Provider (Gmail, Outlook, Yahoo) bevorzugen oder erzwingen TLS-verschluesselten Empfang. Opportunistisches STARTTLS ist heute Minimalstandard; DANE (DNSSEC + TLSA-Records) ist der naechste Haertungsschritt fuer kritische Infrastruktur."
 	case "received_chain":
-		return "Received-Header dokumentieren den Transportweg. Fehlende oder unplausible Header erschweren die technische Bewertung durch empfangende Systeme."
+		return "Received-Header dokumentieren den kompletten Transportweg der Nachricht. Jeder MTA traegt seinen Received-Header ein. Empfangende Systeme nutzen die Kette fuer IP-Reputation, Routing-Analyse und Forensik. Fehlende Header koennen durch falsch konfigurierte Proxies entstehen; zu viele Hops koennen auf Fehlkonfiguration oder Mailloops hinweisen."
+	case "arc":
+		return "ARC (Authenticated Received Chain) erhaelt Authentifizierungs-Ergebnisse (SPF, DKIM, DMARC) ueber Weiterleitungs-Hops hinweg. Wenn eine Mail weitergeleitet wird, koennen SPF/DKIM-Signaturen brechen. ARC-Header dokumentieren den Originalzustand und erlauben Empfaengern, weitergeleitete Mails trotzdem korrekt zu bewerten. Relevant vor allem bei Mailing-Listen, Alumni-Weiterleitungen und Catchall-Setups."
+	case "list_unsub":
+		return "List-Unsubscribe ist seit 2024 von Gmail und Yahoo fuer Bulk-Sender (>5000 Mails/Tag) verpflichtend. Der Header ermoeglichet Providern, einen 'Abmelden'-Button direkt in der UI anzubieten. List-Unsubscribe-Post (One-Click) muss RFC 8058 entsprechen: POST-Anfrage an eine HTTPS-URL, die sofortige Abmeldung ausfuehrt. Fehlender Header fuehrt bei Gmail zu Spam-Einstufung fuer Bulk-Sender."
+	case "preheader":
+		return "Der Preheader-Text ist der erste sichtbare Text im Mail-Body und wird von Mailclients (Gmail, Outlook, Apple Mail, iOS Mail) als Vorschau-Snippet neben dem Betreff angezeigt. Ohne expliziten Preheader ziehen Clients oft unpassenden Text (Links, Abmeldehinweise, HTML-Code). Ein guter Preheader erhoeh Open-Rates und signalisiert professionelles Mailing-Design."
+	case "unicode":
+		return "Zero-Width-Zeichen (U+200B, U+FEFF etc.), Bidi-Override-Zeichen und Unicode-Homoglyphen-Substitutionen sind bekannte Techniken, um Spamfilter zu umgehen und Nutzer zu taeuschen. SpamAssassin, Rspamd und Gmail erkennen gaengige Unicode-Obfuskationsmuster explizit. Normale Sonderzeichen fuer Sprache (Umlaute, Akzente) sind unproblematisch."
 	default:
 		return "Dieser Check bewertet ein technisches Signal, das Mailprovider fuer Zustellbarkeit, Missbrauchserkennung oder Nutzervertrauen heranziehen."
 	}
@@ -714,6 +772,98 @@ func defaultRecommendation(c model.CheckResult, ctx checkContext) string {
 		return "Zero-Width-Zeichen und unnoetige Unicode-Obfuskation aus Betreff und Body entfernen. Normale Sonderzeichen fuer Sprache sind ok; versteckte Zeichen sollten vermieden werden."
 	default:
 		return "Den genannten Wert im Mailserver, DNS oder Versandtemplate korrigieren und danach erneut testen."
+	}
+}
+
+func defaultDocLinks(id string) []model.DocLink {
+	switch id {
+	case "from_alignment", "spf_alignment", "dkim_alignment", "dmarc_alignment":
+		return []model.DocLink{
+			{Title: "DMARC Alignment erklärt – dmarcian", URL: "https://dmarcian.com/alignment/"},
+			{Title: "RFC 7489 – DMARC Alignment", URL: "https://www.rfc-editor.org/rfc/rfc7489#section-3.1"},
+		}
+	case "return_path":
+		return []model.DocLink{
+			{Title: "Return-Path vs. From – Postmark", URL: "https://postmarkapp.com/blog/what-is-the-return-path"},
+			{Title: "RFC 5321 – SMTP Reverse-Path", URL: "https://www.rfc-editor.org/rfc/rfc5321#section-4.1.1.2"},
+		}
+	case "reply_to":
+		return []model.DocLink{
+			{Title: "RFC 5322 – Reply-To Header", URL: "https://www.rfc-editor.org/rfc/rfc5322#section-3.6.2"},
+		}
+	case "tls_transport":
+		return []model.DocLink{
+			{Title: "STARTTLS erklärt – Fastmail", URL: "https://www.fastmail.help/hc/en-us/articles/1500000278321"},
+			{Title: "DANE für SMTP – IETF RFC 7672", URL: "https://www.rfc-editor.org/rfc/rfc7672"},
+			{Title: "TLS-Check – internet.nl", URL: "https://internet.nl/mail/"},
+		}
+	case "received_chain":
+		return []model.DocLink{
+			{Title: "RFC 5321 – Received Header", URL: "https://www.rfc-editor.org/rfc/rfc5321#section-4.4"},
+			{Title: "E-Mail-Header analysieren – MXToolbox", URL: "https://mxtoolbox.com/EmailHeaders.aspx"},
+		}
+	case "arc":
+		return []model.DocLink{
+			{Title: "ARC erklärt – arc-spec.org", URL: "https://arc-spec.org/"},
+			{Title: "RFC 8617 – ARC", URL: "https://www.rfc-editor.org/rfc/rfc8617"},
+		}
+	case "mime_ct", "mime_boundary", "multipart_alt":
+		return []model.DocLink{
+			{Title: "RFC 2045 – MIME Part One", URL: "https://www.rfc-editor.org/rfc/rfc2045"},
+			{Title: "MIME-Typen – MDN", URL: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types"},
+		}
+	case "plain_text":
+		return []model.DocLink{
+			{Title: "Multipart/Alternative Best Practices", URL: "https://www.litmus.com/blog/best-practices-multipart-alternative-emails/"},
+		}
+	case "html", "hidden_html", "html_validity":
+		return []model.DocLink{
+			{Title: "HTML E-Mail Guide – Campaign Monitor", URL: "https://www.campaignmonitor.com/dev-resources/guides/html-email-best-practices/"},
+			{Title: "E-Mail-Kompatibilitätstests – Can I Email", URL: "https://www.caniemail.com/"},
+		}
+	case "links", "shortener", "tracking_links":
+		return []model.DocLink{
+			{Title: "Link-Tracking Best Practices – Postmark", URL: "https://postmarkapp.com/blog/link-tracking-in-email"},
+			{Title: "URL-Reputation prüfen – Google", URL: "https://transparencyreport.google.com/safe-browsing/search"},
+			{Title: "URL-Reputation – VirusTotal", URL: "https://www.virustotal.com/gui/home/url"},
+		}
+	case "subject", "subject_exclaim", "subject_caps":
+		return []model.DocLink{
+			{Title: "Betreff Best Practices – Mailchimp", URL: "https://mailchimp.com/resources/email-subject-line-best-practices/"},
+			{Title: "SpamAssassin Subject-Regeln", URL: "https://spamassassin.apache.org/tests_3_4_x.html"},
+		}
+	case "message_id":
+		return []model.DocLink{
+			{Title: "RFC 5322 – Message-ID", URL: "https://www.rfc-editor.org/rfc/rfc5322#section-3.6.4"},
+		}
+	case "date", "date_skew":
+		return []model.DocLink{
+			{Title: "RFC 5322 – Date Header", URL: "https://www.rfc-editor.org/rfc/rfc5322#section-3.6.1"},
+			{Title: "NTP-Synchronisierung – pool.ntp.org", URL: "https://www.ntppool.org/en/"},
+		}
+	case "attachments", "image_text_ratio":
+		return []model.DocLink{
+			{Title: "Attachment Best Practices – Postmark", URL: "https://postmarkapp.com/developer/user-guide/send-email-with-attachments"},
+			{Title: "Bild/Text-Verhältnis – Validity", URL: "https://www.validity.com/resource-center/image-to-text-ratio/"},
+		}
+	case "list_unsub":
+		return []model.DocLink{
+			{Title: "Gmail Bulk-Sender Anforderungen", URL: "https://support.google.com/mail/answer/81126"},
+			{Title: "Yahoo Sender Best Practices", URL: "https://senders.yahooinc.com/best-practices/"},
+			{Title: "RFC 8058 – One-Click Unsubscribe", URL: "https://www.rfc-editor.org/rfc/rfc8058"},
+			{Title: "RFC 2369 – List-Unsubscribe Header", URL: "https://www.rfc-editor.org/rfc/rfc2369"},
+		}
+	case "preheader":
+		return []model.DocLink{
+			{Title: "Preheader Best Practices – Litmus", URL: "https://www.litmus.com/blog/the-ultimate-guide-to-preview-text-support/"},
+		}
+	case "unicode":
+		return []model.DocLink{
+			{Title: "Unicode-Zeichen prüfen – Unicode Inspector", URL: "https://apps.timwhitlock.info/unicode/inspect"},
+			{Title: "IDN Homograph Attack erklärt", URL: "https://www.xudongz.com/blog/2017/idn-phishing/"},
+		}
+	default:
+		return nil
 	}
 }
 
