@@ -18,7 +18,7 @@ func TestStoreMailboxMessageReportLifecycle(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	mb, err := st.CreateMailbox(ctx, "tok123", "tok123@example.test", "127.0.0.1", time.Hour)
+	mb, err := st.CreateMailbox(ctx, "tok123", "tok123@example.test", "", "127.0.0.1", time.Hour)
 	if err != nil {
 		t.Fatalf("CreateMailbox: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestStoreCleanupDeletesExpiredMailboxAndOldMessages(t *testing.T) {
 	st := newTestStore(t)
 	ctx := context.Background()
 
-	mb, err := st.CreateMailbox(ctx, "tok-clean", "tok-clean@example.test", "127.0.0.1", time.Hour)
+	mb, err := st.CreateMailbox(ctx, "tok-clean", "tok-clean@example.test", "", "127.0.0.1", time.Hour)
 	if err != nil {
 		t.Fatalf("CreateMailbox: %v", err)
 	}

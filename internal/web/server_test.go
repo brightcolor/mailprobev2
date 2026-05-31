@@ -329,7 +329,7 @@ func prepareWebTestFixture(t *testing.T) (*Server, *store.Store, model.Mailbox, 
 	st := store.New(sqlDB)
 	ctx := context.Background()
 
-	mb, err := st.CreateMailbox(ctx, "rk3ee85g6", "rk3ee85g6@example.test", "127.0.0.1", time.Hour)
+	mb, err := st.CreateMailbox(ctx, "rk3ee85g6", "rk3ee85g6@example.test", "", "127.0.0.1", time.Hour)
 	if err != nil {
 		t.Fatalf("create mailbox: %v", err)
 	}
