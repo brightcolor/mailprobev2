@@ -851,8 +851,8 @@ readAndStoreTokenFromFragment();
       if (!res.ok) throw new Error('Payload konnte nicht geladen werden (' + res.status + ').');
       const { payload_enc } = await res.json();
 
-      // Decrypt.
-      const blobBytes = crypto._hexToBytes(payload_enc);
+      // Decrypt. payload_enc is base64url-encoded (no padding), matches Go base64.RawURLEncoding.
+      const blobBytes = crypto._fromBase64url(payload_enc);
       const ptBytes   = await crypto.open(blobBytes, secret);
       const payload   = JSON.parse(crypto._fromUtf8(ptBytes));
 

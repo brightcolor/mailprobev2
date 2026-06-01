@@ -251,24 +251,69 @@ func scanReport(row *sql.Row) (model.AnalysisReport, error) {
 	return r, nil
 }
 
+// ListMessagesWithReports fetches messages and their reports in a single LEFT JOIN
+// query, replacing the previous N+1 query pattern.
 func (s *Store) ListMessagesWithReports(ctx context.Context, mailboxID int64, limit int) ([]model.MessageWithReport, error) {
-	msgs, err := s.ListMessagesByMailbox(ctx, mailboxID, limit)
+	if limit <= 0 {
+		limit = 20
+	}
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT
+			m.id, m.mailbox_id, m.smtp_from, m.rcpt_to, m.remote_ip, m.helo,
+			m.received_at, m.raw_source, m.header_block, m.subject, m.size_bytes,
+			COALESCE(m.payload_enc,''),
+			r.id, r.created_at, r.score, r.score_label,
+			r.checks_json, r.warnings_json, r.suggestions_json,
+			r.headers_json, r.links_json, r.spam_signals_json
+		FROM messages m
+		LEFT JOIN reports r ON r.message_id = m.id
+		WHERE m.mailbox_id = ?
+		ORDER BY m.received_at DESC
+		LIMIT ?
+	`, mailboxID, limit)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]model.MessageWithReport, 0, len(msgs))
-	for _, m := range msgs {
-		r, err := s.GetReportByMessageID(ctx, m.ID)
-		if err != nil && !errors.Is(err, ErrNotFound) {
+	defer rows.Close()
+
+	var out []model.MessageWithReport
+	for rows.Next() {
+		var m model.Message
+		var rID sql.NullInt64
+		var rCreatedAt sql.NullTime
+		var rScore sql.NullFloat64
+		var rLabel, rChecks, rWarnings, rSuggestions, rHeaders, rLinks, rSpam sql.NullString
+
+		if err := rows.Scan(
+			&m.ID, &m.MailboxID, &m.SMTPFrom, &m.RCPTTo, &m.RemoteIP, &m.HELO,
+			&m.ReceivedAt, &m.RawSource, &m.HeaderBlock, &m.Subject, &m.SizeBytes,
+			&m.PayloadEnc,
+			&rID, &rCreatedAt, &rScore, &rLabel,
+			&rChecks, &rWarnings, &rSuggestions, &rHeaders, &rLinks, &rSpam,
+		); err != nil {
 			return nil, err
 		}
-		if errors.Is(err, ErrNotFound) {
-			out = append(out, model.MessageWithReport{Message: m})
-			continue
+
+		mwr := model.MessageWithReport{Message: m}
+		if rID.Valid {
+			r := model.AnalysisReport{
+				ID:         rID.Int64,
+				MessageID:  m.ID,
+				CreatedAt:  rCreatedAt.Time,
+				Score:      rScore.Float64,
+				ScoreLabel: rLabel.String,
+			}
+			_ = json.Unmarshal([]byte(rChecks.String), &r.Checks)
+			_ = json.Unmarshal([]byte(rWarnings.String), &r.Warnings)
+			_ = json.Unmarshal([]byte(rSuggestions.String), &r.Suggestions)
+			_ = json.Unmarshal([]byte(rHeaders.String), &r.RawHeaders)
+			_ = json.Unmarshal([]byte(rLinks.String), &r.Links)
+			_ = json.Unmarshal([]byte(rSpam.String), &r.SpamSignals)
+			mwr.Report = &r
 		}
-		out = append(out, model.MessageWithReport{Message: m, Report: &r})
+		out = append(out, mwr)
 	}
-	return out, nil
+	return out, rows.Err()
 }
 
 func (s *Store) DeleteMailboxByToken(ctx context.Context, token string) error {

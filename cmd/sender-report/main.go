@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -253,7 +254,8 @@ type encryptedPayload struct {
 }
 
 // buildEncryptedPayload seals all sensitive message + report content with the
-// mailbox public key. Returns a hex-encoded sealed blob.
+// mailbox public key. Returns a base64url-encoded sealed blob (no padding).
+// base64url uses ~33% less space than hex and matches the JS _fromBase64url helper.
 func buildEncryptedPayload(raw, headers, subject string, report model.AnalysisReport, pubKey []byte) (string, error) {
 	p := encryptedPayload{
 		RawSource:   raw,
@@ -269,7 +271,7 @@ func buildEncryptedPayload(raw, headers, subject string, report model.AnalysisRe
 	if err != nil {
 		return "", err
 	}
-	return hex.EncodeToString(blob), nil
+	return base64.RawURLEncoding.EncodeToString(blob), nil
 }
 
 // stripReportForStorage removes sensitive check details from the report before

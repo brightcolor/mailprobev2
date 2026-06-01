@@ -39,15 +39,16 @@ import (
 )
 
 type Server struct {
-	cfg          config.Config
-	store        *store.Store
-	logger       *log.Logger
-	tmpl         *template.Template
-	limiter      *ratelimit.Limiter
-	burstLimiter *ratelimit.Limiter
-	metrics      *telemetry.Counters
-	staticFS     http.Handler
-	trustedProxy []*net.IPNet
+	cfg            config.Config
+	store          *store.Store
+	logger         *log.Logger
+	tmpl           *template.Template
+	limiter        *ratelimit.Limiter
+	burstLimiter   *ratelimit.Limiter
+	payloadLimiter *ratelimit.Limiter // tighter per-IP limit for /api/payload/
+	metrics        *telemetry.Counters
+	staticFS       http.Handler
+	trustedProxy   []*net.IPNet
 }
 
 var errActiveMailboxLimit = errors.New("active mailbox limit reached for ip")
@@ -271,15 +272,16 @@ func New(cfg config.Config, st *store.Store, logger *log.Logger, metrics *teleme
 		return nil, err
 	}
 	return &Server{
-		cfg:          cfg,
-		store:        st,
-		logger:       logger,
-		tmpl:         t,
-		limiter:      ratelimit.New(time.Minute, cfg.WebRateLimitPerMin),
-		burstLimiter: ratelimit.New(10*time.Second, cfg.WebBurstPer10Sec),
-		metrics:      metrics,
-		staticFS:     http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join("internal", "web", "static")))),
-		trustedProxy: trustedProxy,
+		cfg:            cfg,
+		store:          st,
+		logger:         logger,
+		tmpl:           t,
+		limiter:        ratelimit.New(time.Minute, cfg.WebRateLimitPerMin),
+		burstLimiter:   ratelimit.New(10*time.Second, cfg.WebBurstPer10Sec),
+		payloadLimiter: ratelimit.New(time.Minute, 30), // max 30 payload fetches/min per IP
+		metrics:        metrics,
+		staticFS:       http.StripPrefix("/static/", http.FileServer(http.Dir(filepath.Join("internal", "web", "static")))),
+		trustedProxy:   trustedProxy,
 	}, nil
 }
 
@@ -299,7 +301,31 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/mailbox/", s.mailboxPage)
 	mux.HandleFunc("/report/", s.reportPage)
 	mux.HandleFunc("/raw/", s.rawPage)
-	return s.withLogging(s.withRateLimit(s.withHTTPSRedirect(mux)))
+	return s.withLogging(s.withSecurityHeaders(s.withRateLimit(s.withHTTPSRedirect(mux))))
+}
+
+// withSecurityHeaders adds baseline HTTP security headers to every response.
+// 'unsafe-inline' is required because templates use inline scripts and styles;
+// a future migration to nonce-based CSP would tighten this further.
+func (s *Server) withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		h.Set("Content-Security-Policy",
+			"default-src 'self'; "+
+				"script-src 'self' 'unsafe-inline'; "+
+				"style-src 'self' 'unsafe-inline'; "+
+				"img-src 'self' data: blob:; "+
+				"font-src 'self' data:; "+
+				"connect-src 'self'; "+
+				"frame-src 'self'; "+
+				"form-action 'self'; "+
+				"base-uri 'self'",
+		)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) withHTTPSRedirect(next http.Handler) http.Handler {
@@ -739,6 +765,12 @@ func (s *Server) reportAPI(w http.ResponseWriter, r *http.Request) {
 func (s *Server) payloadAPI(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		jsonResp(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+		return
+	}
+	// Dedicated tighter rate limit for this endpoint to slow down ciphertext enumeration.
+	ip := s.clientIP(r)
+	if s.payloadLimiter != nil && !s.payloadLimiter.Allow("payload:"+ip) {
+		jsonResp(w, http.StatusTooManyRequests, map[string]string{"error": "rate limited"})
 		return
 	}
 	parts := strings.SplitN(strings.TrimPrefix(r.URL.Path, "/api/payload/"), "/", 2)
@@ -1380,50 +1412,6 @@ func selectMessageWithReport(token string, msgs []model.MessageWithReport, msgRe
 		}
 	}
 	return nil
-}
-
-func (s *Server) getOrCreateHomeMailbox(ctx context.Context, ip, preferredToken string, forceNew bool, domain string) (model.Mailbox, error) {
-	if !forceNew && preferredToken != "" {
-		mb, err := s.store.GetMailboxByToken(ctx, preferredToken)
-		if err == nil && time.Now().UTC().Before(mb.ExpiresAt) {
-			_ = s.store.TouchMailbox(ctx, mb.ID)
-			return mb, nil
-		}
-	}
-
-	active, err := s.store.CountActiveMailboxesByIP(ctx, ip)
-	if err != nil {
-		return model.Mailbox{}, err
-	}
-	if active >= s.cfg.MaxActivePerIP {
-		return model.Mailbox{}, errActiveMailboxLimit
-	}
-	activeGlobal, err := s.store.CountActiveMailboxes(ctx)
-	if err != nil {
-		return model.Mailbox{}, err
-	}
-	if activeGlobal >= s.cfg.MaxActiveGlobal {
-		return model.Mailbox{}, errGlobalActiveMailboxLimit
-	}
-
-	token, addr, err := s.generateMailboxAddress(ctx, domain)
-	if err != nil {
-		return model.Mailbox{}, err
-	}
-	mb, err := s.store.CreateMailbox(ctx, token, addr, "", ip, s.cfg.MailboxTTL)
-	if err != nil {
-		return model.Mailbox{}, err
-	}
-	if forceNew && preferredToken != "" && preferredToken != mb.Token {
-		if oldBox, oldErr := s.store.GetMailboxByToken(ctx, preferredToken); oldErr == nil {
-			msgs, listErr := s.store.ListMessagesByMailbox(ctx, oldBox.ID, 1)
-			if listErr == nil && len(msgs) == 0 {
-				_ = s.store.DeleteMailboxByToken(ctx, oldBox.Token)
-			}
-		}
-	}
-	s.metrics.IncMailboxesCreated()
-	return mb, nil
 }
 
 var htmlTagPattern = regexp.MustCompile(`(?s)<[^>]*>`)

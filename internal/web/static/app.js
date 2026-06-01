@@ -137,8 +137,13 @@ async function createMailboxWithCrypto() {
 
 // ── URL-Fragment: read token from #hash on mailbox/report pages ───────────────
 // When a user opens a shared link like /mailbox/{id}#secretToken, this function
-// reads the fragment and stores the secret synchronously — the identifier is
-// already in the URL path, so no async derivation is needed.
+// reads the fragment and stores the secret. The identifier is already in the URL
+// path, so no async derivation is needed for the initial store.
+//
+// Security: never overwrites an existing key synchronously — this prevents an
+// attacker from sending a crafted link (/report/{victim-id}#wrong-token) to
+// destroy the victim's stored decryption key. If a key already exists, the
+// fragment is only applied after async verification confirms it matches.
 function readAndStoreTokenFromFragment() {
   const hash = (location.hash || '').slice(1); // strip leading #
   if (!hash) return;
@@ -146,18 +151,36 @@ function readAndStoreTokenFromFragment() {
   const segments = location.pathname.split('/').filter(Boolean);
   const identifier = segments[segments.length - 1];
   if (!identifier || identifier.length < 8) return;
-  // Store immediately — synchronous, no race condition possible.
-  storeSecret(identifier, hash);
-  // Best-effort async verification: if the fragment doesn't actually belong to
-  // this identifier, remove the incorrectly stored secret.
+
+  const hadExisting = !!loadSecret(identifier);
+
+  if (!hadExisting) {
+    // No key stored yet — safe to store optimistically.
+    // Worst case: wrong key stored temporarily, removed by async verification;
+    // user reopens original link to restore.
+    storeSecret(identifier, hash);
+  }
+
+  // Async verification: confirm the fragment token actually belongs to this mailbox.
   if (window.SenderReportCrypto) {
     window.SenderReportCrypto.fromToken(hash).then(function(info) {
-      if (info.identifier !== identifier) {
+      if (info.identifier === identifier) {
+        // Valid token for this mailbox — persist and clean fragment from history.
+        storeSecret(identifier, hash);
+        if (location.hash) {
+          history.replaceState(null, '', location.pathname + location.search);
+        }
+      } else if (!hadExisting) {
+        // Wrong identifier — remove what we optimistically stored, put under real id.
         removeSecret(identifier);
         storeSecret(info.identifier, hash);
       }
+      // If hadExisting and wrong identifier: touch nothing — preserve user's key.
     }).catch(function() {
-      removeSecret(identifier); // invalid token in fragment
+      if (!hadExisting) {
+        removeSecret(identifier); // invalid token, remove what we stored
+      }
+      // If hadExisting: preserve the existing key.
     });
   }
 }
@@ -788,6 +811,7 @@ async function loadPreviousMailboxes() {
       items.push({ token: others[i], data: res.value });
     } else {
       removeFromHistory(others[i]); // abgelaufene / gelöschte Mailbox entfernen
+      removeSecret(others[i]);     // zugehörigen Schlüssel ebenfalls bereinigen
     }
   });
 
@@ -889,6 +913,7 @@ async function confirmDeleteMailbox() {
     // Auch bei Fehler aus dem lokalen Verlauf entfernen
   }
   removeFromHistory(token);
+  removeSecret(token); // also wipe decryption key — mailbox is gone
 
   // Zeile animiert ausblenden
   const row = document.querySelector(`[data-token="${token}"].mp-prev-mb-item`);
@@ -1093,9 +1118,9 @@ async function initHomeMailbox() {
         if (!secret) continue;
         try {
           const res = await fetch(`/api/mailboxes/${identifier}/status`, { cache: 'no-store' });
-          if (!res.ok) continue;
+          if (!res.ok) { removeSecret(identifier); continue; }
           const status = await res.json();
-          if (status.expired) continue;
+          if (status.expired) { removeSecret(identifier); continue; }
           // Mailbox is alive — restore identity including shareable fragment URL.
           const addr = identifier + '@' + (panel.dataset.domain || location.hostname);
           updateMailboxIdentity({
