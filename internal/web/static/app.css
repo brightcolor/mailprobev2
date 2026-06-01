@@ -240,6 +240,13 @@ body,
   }
 }
 
+/* ── Home page centered layout (Phase 2 redesign) ───────────────────────── */
+.mp-home-center {
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 2.5rem 1rem 3rem;
+}
+
 /* ── Hero section ───────────────────────────────────────────────────────── */
 .mp-hero-section {
   background:
